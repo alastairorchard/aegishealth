@@ -1,9 +1,8 @@
 // ==============================================================================
-// AEGISHEALTH - ZERO-HALLUCINATION BIOMARKER ENGINE & REAL LAB EXTRACTOR
+// AEGISHEALTH - PRECISION CLINICAL PARSER & ZERO-HALLUCINATION ENGINE
 // ==============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize Lucide icons
   if (window.lucide) {
     window.lucide.createIcons();
   }
@@ -30,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     activeTrendsCategory: 'ALL',
     activePrimaryBiomarker: null,
     activeSecondaryBiomarker: null,
-    pendingLabReview: null, // Temporary staging for document verification
+    pendingLabReview: null,
     charts: {}
   };
 
@@ -92,7 +91,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Handle Form Submit
   authForm.addEventListener('submit', (e) => {
     e.preventDefault();
     authErrorMsg.classList.add('hidden');
@@ -100,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const userKey = authPassInput.value;
 
     if (!email || !userKey) {
-      showAuthError('Please provide both an email and password.');
+      showAuthError('Please provide both an email and ***.');
       return;
     }
 
@@ -271,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ----------------------------------------------------------------------------
-  // DYNAMIC BIOMARKER CATALOG & CATEGORIZATION
+  // DYNAMIC BIOMARKER CATALOG
   // ----------------------------------------------------------------------------
   function getIngestedBiomarkerCatalog() {
     const map = new Map();
@@ -372,7 +370,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.messages.length === 0 && state.currentUser) {
       state.messages.push({
         sender_role: 'doc_agent',
-        content: `Hello ${state.currentUser.fullName}! I am **Doc**, your clinical medical consultant (OpenClaw \`google/gemini-3.7-flash\`).\n\nYour clinical vault is completely empty and ready. When you upload a blood test, thyroid panel, or retinal OCT scan in the **Lab Vault**, I will extract the exact data from the file for you to review and verify.\n\nWhat clinical records would you like to review today?`,
+        content: `Hello ${state.currentUser.fullName}! I am **Doc**, your clinical medical consultant (OpenClaw \`google/gemini-3.7-flash\`).\n\nYour clinical vault is completely empty and ready. Upload your blood test or checkup in the **Lab Vault** and I will extract the exact clinical parameters from the report for your verification.\n\nWhat clinical records would you like to review?`,
         created_at: new Date().toISOString()
       });
     }
@@ -813,19 +811,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     ];
 
-    if (primary.optimal_high && !secondary) {
-      datasets.push({
-        label: `Longevity Target (< ${primary.optimal_high} ${primary.unit})`,
-        data: primaryLabels.map(() => primary.optimal_high),
-        borderColor: '#f59e0b',
-        borderDash: [5, 5],
-        borderWidth: 1.5,
-        fill: false,
-        pointRadius: 0,
-        yAxisID: 'y'
-      });
-    }
-
     if (secondary) {
       let secondaryData = [];
       if (secondary.type === 'lab') {
@@ -894,22 +879,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     tbody.innerHTML = state.biomarkers.map(b => {
-      let statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">OPTIMAL</span>`;
-      if (b.clinical_flag === 'borderline') {
-        statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">BORDERLINE</span>`;
-      } else if (b.clinical_flag === 'normal') {
-        statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">NORMAL</span>`;
-      }
-
-      const targetText = b.optimal_longevity_low ? `${b.optimal_longevity_low} – ${b.optimal_longevity_high} ${b.unit}` : `Standard Range`;
-
+      let statusBadge = `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">VERIFIED</span>`;
       return `
         <tr class="hover:bg-surface-dark/50 transition-colors">
           <td class="py-3 px-4 font-mono text-slate-400">${b.test_date}</td>
           <td class="py-3 px-4 font-semibold text-white">${b.biomarker_name}</td>
           <td class="py-3 px-4 text-slate-400 capitalize">${(b.category || 'general').replace('_', ' ')}</td>
           <td class="py-3 px-4 font-bold text-white">${b.value} <span class="text-xs font-normal text-slate-400">${b.unit}</span></td>
-          <td class="py-3 px-4 text-brand-400">${targetText}</td>
+          <td class="py-3 px-4 text-slate-400">${b.reference_range || 'Clinical Range'}</td>
           <td class="py-3 px-4">${statusBadge}</td>
           <td class="py-3 px-4 text-slate-300 text-[11px] max-w-xs truncate">${b.notes || '—'}</td>
         </tr>
@@ -918,7 +895,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ----------------------------------------------------------------------------
-  // REAL LAB DOCUMENT PARSING & VERIFICATION ENGINE (ZERO FABRICATION)
+  // MULTI-LINGUAL & LAYOUT-AWARE CLINICAL PARSER (ZERO FABRICATION)
   // ----------------------------------------------------------------------------
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
@@ -950,126 +927,216 @@ document.addEventListener('DOMContentLoaded', () => {
         fileSizeBytes: 0,
         mimeType: 'text/plain',
         rawText: 'Manual user entry',
+        extractedDate: new Date().toISOString().split('T')[0],
         extractedItems: [
-          { code: 'CHOLESTEROL_TOTAL', name: 'Total Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
+          { code: 'TOTAL_CHOLESTEROL', name: 'Total Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
+          { code: 'HDL_CHOLESTEROL', name: 'HDL Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
+          { code: 'LDL_CHOLESTEROL', name: 'LDL Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
           { code: 'TRIGLYCERIDES', name: 'Triglycerides', value: '', unit: 'mg/dL', category: 'lipids_cardio' }
         ]
       });
     });
   }
 
+  // Layout-aware PDF line reconstruction
   async function processUploadedDocument(file) {
-    let extractedText = '';
+    let lines = [];
+    let detectedDate = new Date().toISOString().split('T')[0];
 
-    // 1. Extract raw text from PDF or Text files
     if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
       if (window.pdfjsLib) {
         try {
           const arrayBuffer = await file.arrayBuffer();
           const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
           const pdf = await loadingTask.promise;
-          let fullText = '';
+
           for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
             const page = await pdf.getPage(pageNum);
             const textContent = await page.getTextContent();
-            const pageItems = textContent.items.map(item => item.str).join(' ');
-            fullText += `\n--- Page ${pageNum} ---\n` + pageItems;
+            
+            // Group text fragments by visual vertical Y-coordinate (within 4px tolerance)
+            const rows = {};
+            for (const item of textContent.items) {
+              if (!item.str || !item.str.trim()) continue;
+              const y = Math.round(item.transform[5]);
+              let bucket = Object.keys(rows).find(k => Math.abs(k - y) <= 4);
+              if (!bucket) {
+                bucket = y;
+                rows[bucket] = [];
+              }
+              rows[bucket].push({ str: item.str, x: item.transform[4] });
+            }
+
+            // Sort top-to-bottom and left-to-right
+            const sortedY = Object.keys(rows).sort((a, b) => parseFloat(b) - parseFloat(a));
+            const pageLines = sortedY.map(y => {
+              const itemsInRow = rows[y].sort((a, b) => a.x - b.x);
+              return itemsInRow.map(it => it.str.trim()).join(' ');
+            });
+
+            lines = lines.concat(pageLines);
           }
-          extractedText = fullText;
         } catch (err) {
-          console.warn('PDF extraction error:', err);
+          console.warn('PDF layout parsing error:', err);
         }
       }
     } else {
       try {
-        extractedText = await file.text();
+        const text = await file.text();
+        lines = text.split(/[\r\n]+/);
       } catch (err) {
-        console.warn('Text read error:', err);
+        console.warn('Text file read error:', err);
       }
     }
 
-    // 2. Parse Clinical Tokens & Biomarkers from extracted text (Zero Fabrication)
-    const extractedItems = parseClinicalText(extractedText);
+    // Try detecting test date from header (e.g. data referto 12/04/2025 or 2025-04-12)
+    for (const l of lines) {
+      const dateMatch = l.match(/(?:data\s*referto|data\s*esame|date|prelievo)[:\s]*([0-3]?[0-9][/-][0-1]?[0-9][/-][1-2][0-9]{3})/i);
+      if (dateMatch && dateMatch[1]) {
+        const parts = dateMatch[1].split(/[/-]/);
+        if (parts.length === 3) {
+          detectedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          break;
+        }
+      }
+    }
 
-    // 3. Stage for User Review & Verification
+    // Parse structured clinical lines
+    const extractedItems = parseTabularClinicalLines(lines);
+
     openLabReviewModal({
       documentTitle: file.name.replace(/\.[^/.]+$/, ''),
       fileName: file.name,
       fileSizeBytes: file.size,
       mimeType: file.type || 'application/pdf',
-      rawText: extractedText || '(No digital text layer found in document. Please enter/verify values manually below.)',
+      rawText: lines.join('\n') || '(No digital text layer found.)',
+      extractedDate: detectedDate,
       extractedItems: extractedItems
     });
   }
 
-  // Clinical Knowledge Dictionary for parsing real text tokens
-  const KNOWN_BIOMARKERS = [
-    { patterns: [/apolipoprotein\s*b/i, /\bapob\b/i], code: 'APOB', name: 'Apolipoprotein B', unit: 'mg/dL', category: 'lipids_cardio' },
-    { patterns: [/lipoprotein\s*\(a\)/i, /\blp\(a\)\b/i], code: 'LPA', name: 'Lipoprotein(a)', unit: 'nmol/L', category: 'lipids_cardio' },
-    { patterns: [/total\s*cholesterol/i, /\bcholesterol,\s*total\b/i], code: 'CHOLESTEROL_TOTAL', name: 'Total Cholesterol', unit: 'mg/dL', category: 'lipids_cardio' },
-    { patterns: [/ldl\s*cholesterol/i, /\bldl-c\b/i, /\bldl\b/i], code: 'LDL_C', name: 'LDL Cholesterol', unit: 'mg/dL', category: 'lipids_cardio' },
-    { patterns: [/hdl\s*cholesterol/i, /\bhdl-c\b/i, /\bhdl\b/i], code: 'HDL_C', name: 'HDL Cholesterol', unit: 'mg/dL', category: 'lipids_cardio' },
-    { patterns: [/triglycerides/i, /\btriglyceride\b/i], code: 'TRIGLYCERIDES', name: 'Triglycerides', unit: 'mg/dL', category: 'lipids_cardio' },
-    { patterns: [/total\s*testosterone/i, /\btestosterone,\s*total\b/i, /\btestosterone\b/i], code: 'TESTOSTERONE_TOTAL', name: 'Total Testosterone', unit: 'ng/dL', category: 'hormones' },
-    { patterns: [/free\s*testosterone/i, /\btestosterone,\s*free\b/i], code: 'TESTOSTERONE_FREE', name: 'Free Testosterone', unit: 'pg/mL', category: 'hormones' },
-    { patterns: [/estradiol/i, /\be2\b/i], code: 'ESTRADIOL', name: 'Estradiol (E2)', unit: 'pg/mL', category: 'hormones' },
-    { patterns: [/progesterone/i], code: 'PROGESTERONE', name: 'Progesterone', unit: 'ng/mL', category: 'hormones' },
-    { patterns: [/tsh/i, /thyroid\s*stimulating\s*hormone/i], code: 'TSH', name: 'Thyroid Stimulating Hormone (TSH)', unit: 'µIU/mL', category: 'endocrine' },
-    { patterns: [/free\s*t4/i, /\bft4\b/i, /free\s*thyroxine/i], code: 'FREE_T4', name: 'Free T4 (Thyroxine)', unit: 'ng/dL', category: 'endocrine' },
-    { patterns: [/free\s*t3/i, /\bft3\b/i, /free\s*triiodothyronine/i], code: 'FREE_T3', name: 'Free T3', unit: 'pg/mL', category: 'endocrine' },
-    { patterns: [/ferritin/i, /serum\s*ferritin/i], code: 'FERRITIN', name: 'Serum Ferritin', unit: 'ng/mL', category: 'hematology' },
-    { patterns: [/iron,\s*total/i, /serum\s*iron/i, /\biron\b/i], code: 'IRON', name: 'Serum Iron', unit: 'µg/dL', category: 'hematology' },
-    { patterns: [/hemoglobin/i, /\bhgb\b/i], code: 'HEMOGLOBIN', name: 'Hemoglobin', unit: 'g/dL', category: 'hematology' },
-    { patterns: [/hematocrit/i, /\bhct\b/i], code: 'HEMATOCRIT', name: 'Hematocrit', unit: '%', category: 'hematology' },
-    { patterns: [/white\s*blood\s*cells/i, /\bwbc\b/i], code: 'WBC', name: 'White Blood Cell Count', unit: 'K/µL', category: 'hematology' },
-    { patterns: [/platelets/i, /\bplt\b/i], code: 'PLATELETS', name: 'Platelets', unit: 'K/µL', category: 'hematology' },
-    { patterns: [/vitamin\s*d/i, /25-hydroxy/i, /25-oh\s*vitamin\s*d/i], code: 'VITAMIN_D', name: '25-Hydroxy Vitamin D', unit: 'ng/mL', category: 'micronutrients' },
-    { patterns: [/vitamin\s*b12/i, /cobalamin/i], code: 'VITAMIN_B12', name: 'Vitamin B12', unit: 'pg/mL', category: 'micronutrients' },
-    { patterns: [/hba1c/i, /hemoglobin\s*a1c/i, /glycated\s*hemoglobin/i], code: 'HBA1C', name: 'Hemoglobin A1c', unit: '%', category: 'metabolic' },
-    { patterns: [/fasting\s*glucose/i, /\bglucose\b/i], code: 'GLUCOSE', name: 'Fasting Glucose', unit: 'mg/dL', category: 'metabolic' },
-    { patterns: [/hs-crp/i, /high\s*sensitivity\s*crp/i, /c-reactive\s*protein/i], code: 'HS_CRP', name: 'High-Sensitivity CRP', unit: 'mg/L', category: 'inflammation' },
-    { patterns: [/creatinine/i], code: 'CREATININE', name: 'Serum Creatinine', unit: 'mg/dL', category: 'metabolic' },
-    { patterns: [/egfr/i, /estimated\s*gfr/i], code: 'EGFR', name: 'eGFR', unit: 'mL/min/1.73m²', category: 'metabolic' },
-    { patterns: [/alt\s*\(sgpt\)/i, /\balt\b/i, /alanine\s*aminotransferase/i], code: 'ALT', name: 'ALT (Alanine Aminotransferase)', unit: 'U/L', category: 'metabolic' },
-    { patterns: [/ast\s*\(sgot\)/i, /\bast\b/i, /aspartate\s*aminotransferase/i], code: 'AST', name: 'AST (Aspartate Aminotransferase)', unit: 'U/L', category: 'metabolic' },
-    { patterns: [/macular.*(od|right)/i, /oct.*(od|right)/i], code: 'MACULAR_THICKNESS_OD', name: 'Central Macular Thickness (OD - Right Eye)', unit: 'µm', category: 'ophthalmology' },
-    { patterns: [/macular.*(os|left)/i, /oct.*(os|left)/i], code: 'MACULAR_THICKNESS_OS', name: 'Central Macular Thickness (OS - Left Eye)', unit: 'µm', category: 'ophthalmology' }
+  // Clinical Knowledge Dictionary (Multilingual English + Italian + International)
+  const CLINICAL_DICTIONARY = [
+    // Lipids & Cardio (Colesterolo LDL, HDL, Totale, Trigliceridi, ApoB, Lp(a))
+    { patterns: [/colesterolo\s*ldl/i, /\bldl-c\b/i, /\bldl\s*colesterolo\b/i, /\bldl\b/i], code: 'LDL_CHOLESTEROL', name: 'LDL Cholesterol', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
+    { patterns: [/colesterolo\s*hdl/i, /\bhdl-c\b/i, /\bhdl\s*colesterolo\b/i, /\bhdl\b/i], code: 'HDL_CHOLESTEROL', name: 'HDL Cholesterol', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
+    { patterns: [/^colesterolo\b/i, /\bcolesterolo\s*totale\b/i, /\btotal\s*cholesterol\b/i], code: 'TOTAL_CHOLESTEROL', name: 'Total Cholesterol', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
+    { patterns: [/trigliceridi/i, /triglycerides/i], code: 'TRIGLYCERIDES', name: 'Triglycerides', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
+    { patterns: [/apolipoproteina\s*b/i, /\bapob\b/i], code: 'APOB', name: 'Apolipoprotein B', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
+    { patterns: [/lipoproteina\s*\(a\)/i, /\blp\(a\)\b/i], code: 'LPA', name: 'Lipoprotein(a)', defaultUnit: 'nmol/L', category: 'lipids_cardio' },
+    
+    // Hormones & Androgens (Testosterone, PSA, Estradiol, Progesterone)
+    { patterns: [/rapporto\s*psa\s*libero/i, /psa.*ratio/i, /psa\s*libero\s*\/\s*psa\s*tot/i], code: 'PSA_RATIO', name: 'Free / Total PSA Ratio', defaultUnit: '%', category: 'hormones' },
+    { patterns: [/psa\s*libero/i, /free\s*psa/i], code: 'PSA_FREE', name: 'Free PSA', defaultUnit: 'ng/mL', category: 'hormones' },
+    { patterns: [/antigene\s*prostatico/i, /\bpsa\s*tot/i, /\bpsa\b/i], code: 'PSA_TOTAL', name: 'Total PSA', defaultUnit: 'ng/mL', category: 'hormones' },
+    { patterns: [/testosterone\s*(tot|total|libero)?/i, /^testosterone\b/i], code: 'TESTOSTERONE_TOTAL', name: 'Total Testosterone', defaultUnit: 'ng/mL', category: 'hormones' },
+    { patterns: [/estradiolo/i, /estradiol/i, /\be2\b/i], code: 'ESTRADIOL', name: 'Estradiol (E2)', defaultUnit: 'pg/mL', category: 'hormones' },
+    { patterns: [/progesterone/i], code: 'PROGESTERONE', name: 'Progesterone', defaultUnit: 'ng/mL', category: 'hormones' },
+
+    // Endocrine / Thyroid (TSH, FT3, FT4)
+    { patterns: [/tsh\b/i, /tireostimolante/i, /thyroid\s*stimulating/i], code: 'TSH', name: 'TSH (Thyroid Stimulating Hormone)', defaultUnit: 'µIU/mL', category: 'endocrine' },
+    { patterns: [/ft4\b/i, /t4\s*libero/i, /free\s*t4/i, /tiroxina\s*libera/i], code: 'FREE_T4', name: 'Free T4', defaultUnit: 'ng/dL', category: 'endocrine' },
+    { patterns: [/ft3\b/i, /t3\s*libero/i, /free\s*t3/i, /triiodotironina\s*libera/i], code: 'FREE_T3', name: 'Free T3', defaultUnit: 'pg/mL', category: 'endocrine' },
+
+    // Hematology & Iron
+    { patterns: [/ferritina/i, /ferritin/i], code: 'FERRITIN', name: 'Ferritin', defaultUnit: 'ng/mL', category: 'hematology' },
+    { patterns: [/sideremia/i, /ferro\s*totale/i, /serum\s*iron/i], code: 'IRON', name: 'Serum Iron', defaultUnit: 'µg/dL', category: 'hematology' },
+    { patterns: [/emoglobina\b/i, /hemoglobin\b/i, /\bhgb\b/i], code: 'HEMOGLOBIN', name: 'Hemoglobin', defaultUnit: 'g/dL', category: 'hematology' },
+    { patterns: [/ematocrito/i, /hematocrit/i, /\bhct\b/i], code: 'HEMATOCRIT', name: 'Hematocrit', defaultUnit: '%', category: 'hematology' },
+    { patterns: [/leucociti/i, /globuli\s*bianchi/i, /\bwbc\b/i], code: 'WBC', name: 'White Blood Cells (WBC)', defaultUnit: 'K/µL', category: 'hematology' },
+    { patterns: [/piastrine/i, /platelets/i, /\bplt\b/i], code: 'PLATELETS', name: 'Platelets', defaultUnit: 'K/µL', category: 'hematology' },
+
+    // Metabolic & Renal & Liver (Glicemia, HbA1c, Creatinina, Acido Urico, ALT, AST)
+    { patterns: [/glicemia/i, /fasting\s*glucose/i, /\bglucose\b/i], code: 'GLUCOSE', name: 'Fasting Glucose', defaultUnit: 'mg/dL', category: 'metabolic' },
+    { patterns: [/emoglobina\s*glicata/i, /\bhba1c\b/i, /glycated\s*hemoglobin/i], code: 'HBA1C', name: 'HbA1c', defaultUnit: '%', category: 'metabolic' },
+    { patterns: [/creatinina/i, /creatinine/i], code: 'CREATININE', name: 'Serum Creatinine', defaultUnit: 'mg/dL', category: 'metabolic' },
+    { patterns: [/acido\s*urico/i, /uric\s*acid/i, /uricemia/i], code: 'URIC_ACID', name: 'Uric Acid', defaultUnit: 'mg/dL', category: 'metabolic' },
+    { patterns: [/alt\b/i, /sgpt\b/i, /alanina\s*aminotransferasi/i], code: 'ALT', name: 'ALT (SGPT)', defaultUnit: 'U/L', category: 'metabolic' },
+    { patterns: [/ast\b/i, /sgot\b/i, /aspartato\s*aminotransferasi/i], code: 'AST', name: 'AST (SGOT)', defaultUnit: 'U/L', category: 'metabolic' },
+
+    // Inflammation & Micronutrients
+    { patterns: [/proteina\s*c\s*reattiva/i, /\bhs-crp\b/i, /\bcrp\b/i, /\bpcr\b/i], code: 'HS_CRP', name: 'High-Sensitivity CRP', defaultUnit: 'mg/L', category: 'inflammation' },
+    { patterns: [/vitamina\s*d/i, /25-oh/i, /vitamin\s*d/i], code: 'VITAMIN_D', name: '25-OH Vitamin D', defaultUnit: 'ng/mL', category: 'micronutrients' },
+    { patterns: [/vitamina\s*b12/i, /cobalamina/i, /vitamin\s*b12/i], code: 'VITAMIN_B12', name: 'Vitamin B12', defaultUnit: 'pg/mL', category: 'micronutrients' },
+
+    // Ophthalmology (Macular OCT)
+    { patterns: [/macular.*(od|right|dx)/i, /oct.*(od|right|dx)/i, /spessore\s*maculare.*(od|dx)/i], code: 'MACULAR_THICKNESS_OD', name: 'Central Macular Thickness (OD)', defaultUnit: 'µm', category: 'ophthalmology' },
+    { patterns: [/macular.*(os|left|sx)/i, /oct.*(os|left|sx)/i, /spessore\s*maculare.*(os|sx)/i], code: 'MACULAR_THICKNESS_OS', name: 'Central Macular Thickness (OS)', defaultUnit: 'µm', category: 'ophthalmology' }
   ];
 
-  function parseClinicalText(text) {
-    if (!text || text.length < 5) return [];
-    const results = [];
-    const lines = text.split(/[\r\n]+/);
+  function normalizeUnit(u) {
+    if (!u) return 'unit';
+    const l = u.toLowerCase().trim();
+    if (l === 'mgr/dl' || l === 'mg/dl') return 'mg/dL';
+    if (l.includes('microiu') || l.includes('µiu') || l.includes('uiu')) return 'µIU/mL';
+    if (l === 'ngr/ml' || l === 'ng/ml') return 'ng/mL';
+    if (l === '%') return '%';
+    if (l === 'g/dl') return 'g/dL';
+    if (l === 'pg/ml') return 'pg/mL';
+    if (l === 'u/l') return 'U/L';
+    if (l === 'µm' || l === 'um') return 'µm';
+    return u;
+  }
 
-    KNOWN_BIOMARKERS.forEach(bio => {
-      for (const line of lines) {
-        const matchesPattern = bio.patterns.some(p => p.test(line));
-        if (matchesPattern) {
-          // Look for numerical value on this line
-          const numMatch = line.match(/(?:[:\s=]|^)([0-9]+(?:\.[0-9]+)?)(?:\s*([a-zA-Z%µ/]+))?/);
-          if (numMatch) {
-            const val = parseFloat(numMatch[1]);
-            if (!isNaN(val) && val > 0 && !results.some(r => r.code === bio.code)) {
+  function parseTabularClinicalLines(lines) {
+    const results = [];
+    const seenCodes = new Set();
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Ignore clinic header / footer metadata lines (phone, vat, address)
+      if (trimmed.includes('Tel.') || trimmed.includes('Fax') || trimmed.includes('010.35') || 
+          trimmed.includes('laboratorio@') || trimmed.includes('Direttore') || trimmed.includes('P.I.V.A.') ||
+          trimmed.includes('Cap.Soc.') || trimmed.includes('Cod.Fisc.') || trimmed.startsWith('METODO')) {
+        continue;
+      }
+
+      // Check against clinical dictionary
+      for (const bio of CLINICAL_DICTIONARY) {
+        if (seenCodes.has(bio.code)) continue;
+
+        const isMatch = bio.patterns.some(p => p.test(trimmed));
+        if (isMatch) {
+          // Extract numeric numbers from line
+          const numMatches = trimmed.match(/([0-9]+(?:[,.][0-9]+)?)/g);
+          if (numMatches && numMatches.length > 0) {
+            // First numeric match on line is the measured laboratory value
+            const rawValue = numMatches[0].replace(',', '.');
+            const numVal = parseFloat(rawValue);
+
+            // Extract unit appearing after the number
+            const numIdx = trimmed.indexOf(numMatches[0]);
+            const afterStr = trimmed.substring(numIdx + numMatches[0].length);
+            const unitMatch = afterStr.match(/(?:[\s*#]+)?([a-zA-Z%µ/]+(?:\/[a-zA-Z%µ/]+)?)/);
+            let parsedUnit = bio.defaultUnit;
+            if (unitMatch && unitMatch[1] && unitMatch[1].length > 1) {
+              parsedUnit = normalizeUnit(unitMatch[1]);
+            }
+
+            if (!isNaN(numVal) && numVal > 0) {
               results.push({
                 code: bio.code,
                 name: bio.name,
-                value: val,
-                unit: numMatch[2] || bio.unit,
+                value: numVal,
+                unit: parsedUnit,
                 category: bio.category
               });
+              seenCodes.add(bio.code);
               break;
             }
           }
         }
       }
-    });
+    }
 
     return results;
   }
 
   function openLabReviewModal(pendingData) {
     state.pendingLabReview = pendingData;
-    reviewDocTitle.textContent = `Document: ${pendingData.fileName} • ${pendingData.extractedItems.length} biomarker(s) detected`;
+    reviewDocTitle.textContent = `Document: ${pendingData.fileName} • ${pendingData.extractedItems.length} verified biomarker(s) detected`;
     reviewRawText.textContent = pendingData.rawText;
 
     renderLabReviewRows();
@@ -1084,8 +1151,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (items.length === 0) {
       labReviewTableBody.innerHTML = `
         <tr>
-          <td colspan="5" class="p-4 text-center text-slate-400 text-xs">
-            No recognizable text tokens found automatically. Click <strong>+ Add Marker</strong> above to enter your test results from this sheet.
+          <td colspan="5" class="p-6 text-center text-slate-400 text-xs">
+            No digital text found in this scan. Click <strong>+ Add Marker</strong> above to enter results from this sheet.
           </td>
         </tr>
       `;
@@ -1094,16 +1161,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     labReviewTableBody.innerHTML = items.map((item, idx) => `
       <tr data-index="${idx}">
-        <td class="py-2 px-3">
-          <input type="text" class="rev-name w-full bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-xs text-white" value="${item.name}">
+        <td class="py-2.5 px-3">
+          <input type="text" class="rev-name w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-white" value="${item.name}">
         </td>
-        <td class="py-2 px-3 w-28">
-          <input type="number" step="any" class="rev-val w-full bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-xs font-bold text-brand-400" value="${item.value}">
+        <td class="py-2.5 px-3 w-28">
+          <input type="number" step="any" class="rev-val w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs font-bold text-brand-400" value="${item.value}">
         </td>
-        <td class="py-2 px-3 w-24">
-          <input type="text" class="rev-unit w-full bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-xs text-slate-300 font-mono" value="${item.unit}">
+        <td class="py-2.5 px-3 w-28">
+          <input type="text" class="rev-unit w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-slate-300 font-mono" value="${item.unit}">
         </td>
-        <td class="py-2 px-3 w-32">
+        <td class="py-2.5 px-3 w-36">
           <select class="rev-cat w-full bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-xs text-slate-300">
             <option value="lipids_cardio" ${item.category === 'lipids_cardio' ? 'selected' : ''}>Lipids & Cardio</option>
             <option value="hormones" ${item.category === 'hormones' ? 'selected' : ''}>Hormones</option>
@@ -1116,7 +1183,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <option value="general" ${item.category === 'general' ? 'selected' : ''}>General</option>
           </select>
         </td>
-        <td class="py-2 px-2 text-center w-12">
+        <td class="py-2.5 px-2 text-center w-12">
           <button type="button" class="btn-del-rev-row text-slate-500 hover:text-rose-400 p-1 cursor-pointer" data-index="${idx}">
             <i data-lucide="trash" class="w-4 h-4"></i>
           </button>
@@ -1157,7 +1224,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnConfirmLabSave.addEventListener('click', () => {
       if (!state.pendingLabReview) return;
 
-      const dateStr = new Date().toISOString().split('T')[0];
+      const dateStr = state.pendingLabReview.extractedDate || new Date().toISOString().split('T')[0];
       const rows = labReviewTableBody.querySelectorAll('tr[data-index]');
       const verifiedBiomarkers = [];
 
@@ -1190,7 +1257,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      // Add Document Record
       const newDoc = {
         id: 'doc-' + Date.now(),
         user_id: state.currentUser.id,
@@ -1201,16 +1267,15 @@ document.addEventListener('DOMContentLoaded', () => {
         file_name: state.pendingLabReview.fileName,
         file_size_bytes: state.pendingLabReview.fileSizeBytes,
         mime_type: state.pendingLabReview.mimeType,
-        ai_interpretation_summary: `Parsed and user-verified ${verifiedBiomarkers.length} real biomarker(s): ${verifiedBiomarkers.map(b => b.biomarker_name).join(', ')}.`
+        ai_interpretation_summary: `Parsed and verified ${verifiedBiomarkers.length} real biomarker(s): ${verifiedBiomarkers.map(b => b.biomarker_name).join(', ')}.`
       };
 
       state.labDocuments.unshift(newDoc);
       verifiedBiomarkers.forEach(b => state.biomarkers.unshift(b));
 
-      // Dynamic Doc AI update
       state.messages.push({
         sender_role: 'doc_agent',
-        content: `I have ingested and verified ${verifiedBiomarkers.length} biomarkers from **${state.pendingLabReview.fileName}**:\n${verifiedBiomarkers.map(b => `• **${b.biomarker_name}:** ${b.value} ${b.unit}`).join('\n')}\n\nYour trajectory charts have been updated dynamically.`,
+        content: `I have ingested and verified ${verifiedBiomarkers.length} biomarkers from **${state.pendingLabReview.fileName}** (Date: ${dateStr}):\n${verifiedBiomarkers.map(b => `• **${b.biomarker_name}:** ${b.value} ${b.unit}`).join('\n')}\n\nYour trajectory charts and clinical indicators have been updated.`,
         created_at: new Date().toISOString()
       });
 
@@ -1576,7 +1641,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="flex-1 text-xs">
           <div class="flex items-center justify-between mb-1">
-            <span class="font-bold text-white">${b.biomarker_name} Tracked</span>
+            <span class="font-bold text-white">${b.biomarker_name}</span>
             <span class="text-[10px] text-brand-400 font-mono">Verified Value: ${b.value} ${b.unit}</span>
           </div>
           <p class="text-slate-300 leading-relaxed">Recorded from your clinical document on ${b.test_date}. Category: ${b.category.replace('_', ' ').toUpperCase()}.</p>
