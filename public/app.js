@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Supabase Configuration (Optional Cloud Sync)
   const SUPABASE_URL = 'https://bfwlzobdpbuippfbbjud.supabase.co';
-  const SUPABASE_ANON_KEY = '***';
+  const SUPABASE_ANON_KEY = 'sb_publishable_placeholder';
 
   // Application State
   const state = {
@@ -97,17 +97,17 @@ document.addEventListener('DOMContentLoaded', () => {
     e.preventDefault();
     authErrorMsg.classList.add('hidden');
     const email = authEmailInput.value.trim();
-    const *** = authPassInput.value;
+    const userKey = authPassInput.value;
 
-    if (!email || !***) {
-      showAuthError('Please provide both an email and ***.');
+    if (!email || !userKey) {
+      showAuthError('Please provide both an email and password.');
       return;
     }
 
     // Registration Mode
     if (state.authMode === 'register') {
       const confirmPass = authConfirmPassInput.value;
-      if (confirmPass && *** !== confirmPass) {
+      if (confirmPass && userKey !== confirmPass) {
         showAuthError('Passwords do not match. Please re-enter.');
         return;
       }
@@ -117,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Supabase Auth background sync
       if (state.supabase) {
         try {
-          state.supabase.auth.signUp({ email, *** }).catch(() => {});
+          state.supabase.auth.signUp({ email: email, password: userKey }).catch(() => {});
         } catch (err) {
           console.warn('Supabase auth background note:', err);
         }
@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (state.supabase) {
         try {
-          state.supabase.auth.signInWithPassword({ email, *** }).catch(() => {});
+          state.supabase.auth.signInWithPassword({ email: email, password: userKey }).catch(() => {});
         } catch (err) {
           console.warn('Supabase signin background note:', err);
         }
