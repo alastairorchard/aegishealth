@@ -1,0 +1,58 @@
+/* AegisHealth Custom Styles & Print Media Rules */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0f17;
+}
+::-webkit-scrollbar-thumb {
+  background: #1f2937;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #374151;
+}
+
+.tab-btn.active {
+  background-color: rgba(16, 185, 129, 0.15);
+  color: #ffffff;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.trend-filter-btn.active {
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #ffffff;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+/* Glassmorphism subtle effect */
+.glass-panel {
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Print Styles for Diagnostic Reports */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
+  header, nav, footer, .tab-btn, button, #authModal, #onboardingModal, #dropZone {
+    display: none !important;
+  }
+  #tab-reports, #activeReportView {
+    display: block !important;
+    border: none !important;
+    background: transparent !important;
+    color: #000000 !important;
+    padding: 0 !important;
+  }
+  #activeReportView * {
+    color: #111827 !important;
+    border-color: #e5e7eb !important;
+    background: #ffffff !important;
+  }
+}
