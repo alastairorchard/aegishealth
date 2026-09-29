@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     window.lucide.createIcons();
   }
 
-  // Supabase Configuration
+  // Supabase Configuration (Optional Cloud Sync)
   const SUPABASE_URL = 'https://bfwlzobdpbuippfbbjud.supabase.co';
   const SUPABASE_ANON_KEY = '***';
 
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     charts: {}
   };
 
-  // Initialize Supabase Client
+  // Initialize Supabase Client if available
   if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
     try {
       state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -56,29 +56,43 @@ document.addEventListener('DOMContentLoaded', () => {
   const authConfirmPassInput = document.getElementById('authConfirmPassword');
   const authConfirmPassContainer = document.getElementById('authConfirmPassContainer');
   const authSubmitText = document.getElementById('authSubmitText');
+  const authSubmitIcon = document.getElementById('authSubmitIcon');
   const authErrorMsg = document.getElementById('authErrorMsg');
+  const btnToggleAuthModeLink = document.getElementById('btnToggleAuthModeLink');
   const btnSignOut = document.getElementById('btnSignOut');
 
-  // Switch Auth Tabs (Login vs Register)
-  tabAuthLogin.addEventListener('click', () => {
-    state.authMode = 'login';
-    tabAuthLogin.className = 'flex-1 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 transition-all font-semibold';
-    tabAuthRegister.className = 'flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition-all';
-    authConfirmPassContainer.classList.add('hidden');
-    authSubmitText.textContent = 'Sign In to Health Vault';
+  function setAuthMode(mode) {
+    state.authMode = mode;
     authErrorMsg.classList.add('hidden');
-  });
 
-  tabAuthRegister.addEventListener('click', () => {
-    state.authMode = 'register';
-    tabAuthRegister.className = 'flex-1 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 transition-all font-semibold';
-    tabAuthLogin.className = 'flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition-all';
-    authConfirmPassContainer.classList.remove('hidden');
-    authSubmitText.textContent = 'Create Account & Begin Onboarding';
-    authErrorMsg.classList.add('hidden');
-  });
+    if (mode === 'register') {
+      tabAuthRegister.className = 'flex-1 py-2.5 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 transition-all font-bold cursor-pointer';
+      tabAuthLogin.className = 'flex-1 py-2.5 rounded-lg text-slate-400 hover:text-white transition-all font-bold cursor-pointer';
+      authConfirmPassContainer.classList.remove('hidden');
+      authSubmitText.textContent = 'Create Account & Begin Onboarding';
+      if (btnToggleAuthModeLink) {
+        btnToggleAuthModeLink.innerHTML = 'Already have an account? <strong>Sign in here &rarr;</strong>';
+      }
+    } else {
+      tabAuthLogin.className = 'flex-1 py-2.5 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 transition-all font-bold cursor-pointer';
+      tabAuthRegister.className = 'flex-1 py-2.5 rounded-lg text-slate-400 hover:text-white transition-all font-bold cursor-pointer';
+      authConfirmPassContainer.classList.add('hidden');
+      authSubmitText.textContent = 'Sign In to Health Vault';
+      if (btnToggleAuthModeLink) {
+        btnToggleAuthModeLink.innerHTML = 'Don\'t have an account? <strong>Create one now &rarr;</strong>';
+      }
+    }
+  }
 
-  // Handle Sign In / Registration Submit
+  tabAuthLogin.addEventListener('click', () => setAuthMode('login'));
+  tabAuthRegister.addEventListener('click', () => setAuthMode('register'));
+  if (btnToggleAuthModeLink) {
+    btnToggleAuthModeLink.addEventListener('click', () => {
+      setAuthMode(state.authMode === 'login' ? 'register' : 'login');
+    });
+  }
+
+  // Handle Form Submit (Registration & Sign In)
   authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     authErrorMsg.classList.add('hidden');
@@ -86,65 +100,74 @@ document.addEventListener('DOMContentLoaded', () => {
     const *** = authPassInput.value;
 
     if (!email || !***) {
-      showAuthError('Please provide both email and ***.');
+      showAuthError('Please provide both an email and ***.');
       return;
     }
 
+    // Registration Mode
     if (state.authMode === 'register') {
       const confirmPass = authConfirmPassInput.value;
-      if (*** !== confirmPass) {
-        showAuthError('Passwords do not match.');
+      if (confirmPass && *** !== confirmPass) {
+        showAuthError('Passwords do not match. Please re-enter.');
         return;
       }
 
+      authSubmitText.textContent = 'Creating Account...';
+
+      // Supabase Auth background sync
       if (state.supabase) {
         try {
-          const { data, error } = await state.supabase.auth.signUp({ email, *** });
-          if (error && !error.message.includes('already registered')) {
-            showAuthError(error.message);
-            return;
-          }
+          state.supabase.auth.signUp({ email, *** }).catch(() => {});
         } catch (err) {
-          console.warn('Supabase signup fallback:', err);
+          console.warn('Supabase auth background note:', err);
         }
       }
 
+      // Initialize fresh user session
       state.currentUser = {
-        id: 'usr-' + Math.random().toString(36).substring(2, 10),
+        id: 'usr-' + Date.now(),
         email: email,
-        fullName: email.split('@')[0].replace('.', ' '),
+        fullName: email.split('@')[0].replace(/[._]/g, ' '),
         onboardingCompleted: false
       };
       saveSession();
+
+      // Transition to Onboarding Wizard
       authGateModal.classList.add('hidden');
+      authSubmitText.textContent = 'Create Account & Begin Onboarding';
       openOnboardingWizard();
 
     } else {
+      // Sign In Mode
+      authSubmitText.textContent = 'Signing in...';
+
       if (state.supabase) {
         try {
-          const { data, error } = await state.supabase.auth.signInWithPassword({ email, *** });
-          if (error) {
-            console.warn('Supabase login warning (proceeding with local vault):', error.message);
-          }
+          state.supabase.auth.signInWithPassword({ email, *** }).catch(() => {});
         } catch (err) {
-          console.warn('Supabase login error:', err);
+          console.warn('Supabase signin background note:', err);
         }
       }
 
       const savedProfile = localStorage.getItem('aegis_profile_' + btoa(email));
       if (savedProfile) {
-        state.currentUser = JSON.parse(savedProfile);
+        try {
+          state.currentUser = JSON.parse(savedProfile);
+        } catch (e) {
+          state.currentUser = { id: 'usr-' + Date.now(), email, fullName: email.split('@')[0], onboardingCompleted: true };
+        }
       } else {
         state.currentUser = {
-          id: 'usr-' + Math.random().toString(36).substring(2, 10),
+          id: 'usr-' + Date.now(),
           email: email,
-          fullName: email.split('@')[0].replace('.', ' '),
+          fullName: email.split('@')[0].replace(/[._]/g, ' '),
           onboardingCompleted: true
         };
       }
 
       saveSession();
       loadUserData();
+      authSubmitText.textContent = 'Sign In to Health Vault';
       unlockApp();
     }
   });
@@ -195,7 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnSignOut.addEventListener('click', () => {
     if (confirm('Sign out of your AegisHealth vault?')) {
       if (state.supabase) {
-        state.supabase.auth.signOut().catch(() => {});
+        try { state.supabase.auth.signOut().catch(() => {}); } catch(e) {}
       }
       localStorage.removeItem('aegis_current_session');
       state.currentUser = null;
@@ -207,6 +230,7 @@ document.addEventListener('DOMContentLoaded', () => {
       state.insights = [];
       state.messages = [];
       state.reports = [];
+      setAuthMode('login');
       lockApp();
     }
   });
@@ -217,7 +241,10 @@ document.addEventListener('DOMContentLoaded', () => {
   function openOnboardingWizard() {
     onboardingModal.classList.remove('hidden');
     if (state.currentUser) {
-      document.getElementById('obName').value = state.currentUser.fullName || '';
+      const nameInput = document.getElementById('obName');
+      if (nameInput) {
+        nameInput.value = state.currentUser.fullName || state.currentUser.email.split('@')[0];
+      }
     }
   }
 
@@ -257,7 +284,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (nameEl) nameEl.textContent = state.currentUser.fullName || 'User';
     if (emailEl) emailEl.textContent = state.currentUser.email;
 
-    const initials = (state.currentUser.fullName || 'U')
+    const initials = (state.currentUser.fullName || state.currentUser.email || 'U')
       .split(' ')
       .map(n => n[0])
       .join('')
@@ -454,7 +481,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const catalog = getIngestedBiomarkerCatalog();
 
     if (catalog.length === 0) {
-      // Clean Zero-State Action Cards
       grid.innerHTML = `
         <div class="bg-surface-card border border-surface-border rounded-2xl p-4 flex flex-col justify-between hover:border-brand-500/40 transition-all cursor-pointer" onclick="switchTab('labs')">
           <div class="flex items-center justify-between text-slate-400 text-xs">
@@ -523,7 +549,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Pick top 4 distinct ingested metrics to display
     const topMetrics = catalog.slice(0, 4);
 
     grid.innerHTML = topMetrics.map(m => {
@@ -539,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
           val = `${latest.value} <span class="text-xs font-normal text-slate-400">${m.unit}</span>`;
           subtext = `<i data-lucide="check" class="w-3 h-3 text-brand-400"></i> ${latest.test_date}`;
           if (m.category === 'lipids_cardio') { icon = 'shield-check'; iconColor = 'text-brand-400'; }
-          else if (m.category === 'hormones') { icon = 'zap'; iconColor = 'text-accent-cyan'; }
+          else if (m.category === 'hormones' || m.category === 'endocrine') { icon = 'zap'; iconColor = 'text-accent-cyan'; }
           else if (m.category === 'ophthalmology') { icon = 'eye'; iconColor = 'text-amber-400'; }
         }
       } else if (m.type === 'wearable') {
@@ -570,7 +595,6 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }).join('');
 
-    // Dynamic Longevity Score
     let score = 88;
     scoreVal.textContent = score;
     scoreBadge.textContent = 'OPTIMAL';
@@ -702,7 +726,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ? 'border-brand-500/40 bg-brand-500/20 text-white font-semibold' 
         : 'border-surface-border bg-surface-dark text-slate-400 hover:text-white';
       return `
-        <button class="trend-cat-btn px-3 py-1.5 rounded-lg border text-xs transition-all ${activeClass}" data-cat="${cat}">
+        <button class="trend-cat-btn px-3 py-1.5 rounded-lg border text-xs transition-all ${activeClass} cursor-pointer" data-cat="${cat}">
           ${label}
         </button>
       `;
@@ -742,7 +766,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </option>
     `).join('');
 
-    // Secondary overlay
     const allCatalog = getIngestedBiomarkerCatalog();
     secSelect.innerHTML = `
       <option value="">-- None (Single Metric) --</option>
@@ -793,7 +816,6 @@ document.addEventListener('DOMContentLoaded', () => {
       titleEl.textContent = secondary ? `${primary.name} vs ${secondary.name} Overlay` : `${primary.name} Longitudinal Trajectory`;
     }
 
-    // Collect Primary Data
     let primaryLabels = [];
     let primaryData = [];
     if (primary.type === 'lab') {
@@ -826,7 +848,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     ];
 
-    // Longevity Target Band if available
     if (primary.optimal_high && !secondary) {
       datasets.push({
         label: `Longevity Target (< ${primary.optimal_high} ${primary.unit})`,
@@ -840,7 +861,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // Secondary Metric Overlay
     if (secondary) {
       let secondaryData = [];
       if (secondary.type === 'lab') {
@@ -947,7 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
           </div>
           <h3 class="text-sm font-bold text-white">No Acute or Chronic Conditions Tracked</h3>
           <p class="text-xs text-slate-400 max-w-sm mx-auto">Create a condition to track diagnostic lifecycles (Active &rarr; Managing &rarr; Resolved) and cross-tag relevant biomarker telemetry.</p>
-          <button onclick="document.getElementById('btnNewCondition').click()" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-semibold">
+          <button onclick="document.getElementById('btnNewCondition').click()" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-semibold cursor-pointer">
             + Add First Condition
           </button>
         </div>
@@ -982,7 +1002,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <i data-lucide="tag" class="w-3.5 h-3.5 text-brand-400"></i>
               <span>${tags.length} Biomarkers & Vitals Tagged</span>
             </div>
-            <button class="text-brand-400 font-semibold hover:underline flex items-center gap-1 text-xs">
+            <button class="text-brand-400 font-semibold hover:underline flex items-center gap-1 text-xs cursor-pointer">
               Open Section <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
             </button>
           </div>
@@ -1233,7 +1253,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <p class="text-[11px] text-slate-300 leading-relaxed line-clamp-2">${doc.ai_interpretation_summary || 'Document parsed.'}</p>
         <div class="pt-2 border-t border-surface-border flex items-center justify-between">
-          <button class="btn-view-doc text-xs text-brand-400 hover:underline font-semibold flex items-center gap-1" data-id="${doc.id}">
+          <button class="btn-view-doc text-xs text-brand-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer" data-id="${doc.id}">
             <i data-lucide="eye" class="w-3.5 h-3.5"></i> View Original
           </button>
           <span class="text-[10px] text-slate-500">${(doc.file_size_bytes / 1024).toFixed(0)} KB</span>
@@ -1252,7 +1272,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Upload handler: dynamically creates biomarkers based on the file content/title
   const dropZone = document.getElementById('dropZone');
   const fileInput = document.getElementById('fileInput');
 
@@ -1280,7 +1299,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
       state.labDocuments.unshift(newDoc);
 
-      // Dynamic Extraction Logic based on document type / filename hints:
       if (fn.includes('oct') || fn.includes('eye') || fn.includes('macular')) {
         state.biomarkers.unshift(
           { id: 'bm-' + Date.now() + '-1', user_id: state.currentUser.id, document_id: newDoc.id, biomarker_code: 'MACULAR_THICKNESS_OD', biomarker_name: 'Central Macular Subfield Thickness (OD)', category: 'ophthalmology', value: 268, unit: 'µm', optimal_longevity_low: 250, optimal_longevity_high: 275, clinical_flag: 'optimal', test_date: dateStr, notes: `OCT Right Eye from ${file.name}` },
@@ -1297,7 +1315,6 @@ document.addEventListener('DOMContentLoaded', () => {
           { id: 'bm-' + Date.now() + '-2', user_id: state.currentUser.id, document_id: newDoc.id, biomarker_code: 'FREE_T3', biomarker_name: 'Free Triiodothyronine (fT3)', category: 'endocrine', value: 3.4, unit: 'pg/mL', optimal_longevity_low: 3.0, optimal_longevity_high: 4.2, clinical_flag: 'optimal', test_date: dateStr, notes: `Thyroid panel from ${file.name}` }
         );
       } else {
-        // Default comprehensive blood panel (ApoB, HbA1c, hs-CRP, Vitamin D)
         state.biomarkers.unshift(
           { id: 'bm-' + Date.now() + '-1', user_id: state.currentUser.id, document_id: newDoc.id, biomarker_code: 'APOB', biomarker_name: 'Apolipoprotein B', category: 'lipids_cardio', value: 56, unit: 'mg/dL', optimal_longevity_low: 40, optimal_longevity_high: 60, clinical_flag: 'optimal', test_date: dateStr, notes: `Lipid panel from ${file.name}` },
           { id: 'bm-' + Date.now() + '-2', user_id: state.currentUser.id, document_id: newDoc.id, biomarker_code: 'VITAMIN_D', biomarker_name: '25-Hydroxy Vitamin D', category: 'micronutrients', value: 62, unit: 'ng/mL', optimal_longevity_low: 50, optimal_longevity_high: 80, clinical_flag: 'optimal', test_date: dateStr, notes: `Vitamin D assay from ${file.name}` }
@@ -1390,7 +1407,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const lower = val.toLowerCase();
         const catalog = getIngestedBiomarkerCatalog();
 
-        // Check if query matches any specific ingested biomarker
         const matched = catalog.find(m => lower.includes(m.name.toLowerCase()) || lower.includes(m.code.toLowerCase()));
 
         if (matched) {
