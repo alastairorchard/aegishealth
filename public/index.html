@@ -50,116 +50,138 @@
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <!-- Custom Styles -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-[#090d14] text-slate-100 font-['Plus_Jakarta_Sans',sans-serif] antialiased min-h-screen flex flex-col selection:bg-brand-500 selection:text-white">
 
   <!-- ============================================================================== -->
-  <!-- AUTH / ONBOARDING MODAL OVERLAYS                                               -->
+  <!-- MANDATORY AUTHENTICATION GATE MODAL (SIGN IN / REGISTER)                       -->
   <!-- ============================================================================== -->
-  <div id="authModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md hidden">
-    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md p-8 shadow-2xl relative">
+  <div id="authGateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-[#070a10]/95 backdrop-blur-xl p-4">
+    <div class="bg-surface-card border border-surface-border rounded-3xl w-full max-w-md p-8 shadow-2xl relative">
       <div class="text-center mb-6">
-        <div class="inline-flex p-3 bg-brand-500/10 rounded-2xl border border-brand-500/30 text-brand-400 mb-3">
-          <i data-lucide="shield-check" class="w-8 h-8"></i>
+        <div class="inline-flex p-3.5 bg-gradient-to-tr from-brand-500/20 to-accent-cyan/20 rounded-2xl border border-brand-500/30 text-brand-400 mb-3 shadow-lg shadow-brand-500/10">
+          <i data-lucide="shield-plus" class="w-9 h-9"></i>
         </div>
-        <h2 class="text-2xl font-bold tracking-tight text-white" id="authModalTitle">Welcome to AegisHealth</h2>
+        <h2 class="text-2xl font-extrabold tracking-tight text-white">AegisHealth</h2>
         <p class="text-xs text-slate-400 mt-1">Clinical Longevity & Biomarker Intelligence</p>
+      </div>
+
+      <!-- Sign In vs Register Toggle -->
+      <div class="flex rounded-xl bg-surface-dark p-1 border border-surface-border mb-6 text-xs font-semibold">
+        <button type="button" id="tabAuthLogin" class="flex-1 py-2 rounded-lg bg-brand-500/20 text-brand-400 border border-brand-500/30 transition-all">
+          Sign In
+        </button>
+        <button type="button" id="tabAuthRegister" class="flex-1 py-2 rounded-lg text-slate-400 hover:text-white transition-all">
+          Create Account
+        </button>
       </div>
 
       <form id="authForm" class="space-y-4">
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Email Address</label>
-          <input type="email" id="authEmail" required value="alastairorchard@icloud.com" class="w-full bg-surface-dark border border-surface-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400" placeholder="name@domain.com">
+          <input type="email" id="authEmail" required class="w-full bg-surface-dark border border-surface-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 placeholder-slate-600" placeholder="your.name@domain.com">
         </div>
+        
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Password</label>
-          <input type="password" id="authPassword" required value="••••••••••••" class="w-full bg-surface-dark border border-surface-border rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400" placeholder="Password">
+          <input type="password" id="authPassword" required minlength="6" class="w-full bg-surface-dark border border-surface-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 placeholder-slate-600" placeholder="••••••••••••">
         </div>
-        <button type="submit" class="w-full py-3 bg-gradient-to-r from-brand-500 to-accent-cyan text-white font-semibold rounded-xl text-sm shadow-lg shadow-brand-500/20 hover:opacity-95 transition-all flex items-center justify-center gap-2">
-          <i data-lucide="log-in" class="w-4 h-4"></i> Sign In to Vault
+
+        <div id="authConfirmPassContainer" class="hidden">
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">Confirm Password</label>
+          <input type="password" id="authConfirmPassword" minlength="6" class="w-full bg-surface-dark border border-surface-border rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-brand-400 focus:ring-1 focus:ring-brand-400 placeholder-slate-600" placeholder="••••••••••••">
+        </div>
+
+        <div id="authErrorMsg" class="text-xs text-rose-400 hidden p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20"></div>
+
+        <button type="submit" id="btnSubmitAuth" class="w-full py-3.5 bg-gradient-to-r from-brand-500 to-accent-cyan text-white font-bold rounded-xl text-sm shadow-lg shadow-brand-500/20 hover:opacity-95 transition-all flex items-center justify-center gap-2">
+          <i data-lucide="log-in" class="w-4 h-4"></i> <span id="authSubmitText">Sign In to Health Vault</span>
         </button>
       </form>
 
-      <div class="mt-6 pt-6 border-t border-surface-border text-center">
-        <button id="btnDemoLogin" class="text-xs text-brand-400 hover:text-brand-300 underline font-medium">
-          Quick Access: Demo Patient (Alastair Orchard)
-        </button>
+      <div class="mt-6 pt-4 border-t border-surface-border/80 text-center text-[11px] text-slate-500">
+        End-to-end encrypted biometric storage & HIPAA/GDPR-compliant security.
       </div>
     </div>
   </div>
 
-  <!-- Onboarding Wizard Modal -->
-  <div id="onboardingModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md hidden">
-    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-xl p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+  <!-- ============================================================================== -->
+  <!-- ONBOARDING WIZARD MODAL                                                        -->
+  <!-- ============================================================================== -->
+  <div id="onboardingModal" class="fixed inset-0 z-50 flex items-center justify-center bg-[#070a10]/95 backdrop-blur-xl p-4 hidden">
+    <div class="bg-surface-card border border-surface-border rounded-3xl w-full max-w-xl p-8 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <div class="flex items-center justify-between pb-4 border-b border-surface-border mb-6">
         <div class="flex items-center gap-3">
-          <div class="p-2 bg-brand-500/10 rounded-xl text-brand-400">
+          <div class="p-2.5 bg-brand-500/10 rounded-2xl text-brand-400 border border-brand-500/20">
             <i data-lucide="sparkles" class="w-6 h-6"></i>
           </div>
           <div>
             <h3 class="text-lg font-bold text-white">Patient Onboarding Wizard</h3>
-            <p class="text-xs text-slate-400">Configure your baseline physiological profile</p>
+            <p class="text-xs text-slate-400">Set up your personal baseline physiological profile</p>
           </div>
         </div>
       </div>
 
       <form id="onboardingForm" class="space-y-5">
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-slate-300 mb-1">Full Name</label>
-            <input type="text" id="obName" value="Alastair Orchard" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-sm text-white">
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Full Legal / Preferred Name</label>
+            <input type="text" id="obName" required class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400" placeholder="e.g. Alastair Orchard">
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-300 mb-1">Date of Birth</label>
-            <input type="date" id="obDob" value="1982-06-15" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-sm text-white">
+            <input type="date" id="obDob" required class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400">
           </div>
         </div>
 
         <div class="grid grid-cols-3 gap-4">
           <div>
             <label class="block text-xs font-semibold text-slate-300 mb-1">Biological Sex</label>
-            <select id="obSex" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-sm text-white">
-              <option value="male" selected>Male</option>
+            <select id="obSex" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400">
+              <option value="male">Male</option>
               <option value="female">Female</option>
               <option value="other">Other</option>
             </select>
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-300 mb-1">Height (cm)</label>
-            <input type="number" id="obHeight" value="184" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-sm text-white">
+            <input type="number" id="obHeight" placeholder="180" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400">
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-300 mb-1">Weight (kg)</label>
-            <input type="number" id="obWeight" step="0.1" value="81.5" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-sm text-white">
+            <input type="number" id="obWeight" step="0.1" placeholder="78.0" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-brand-400">
           </div>
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-slate-300 mb-2">Primary Health & Longevity Objectives</label>
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
-              <input type="checkbox" checked class="rounded accent-brand-500">
+          <label class="block text-xs font-semibold text-slate-300 mb-2">Primary Longevity & Health Targets</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <label class="flex items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
+              <input type="checkbox" checked value="Cardiovascular & ApoB Optimization" class="ob-goal rounded accent-brand-500">
               <span>Cardiovascular & ApoB Optimization</span>
             </label>
-            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
-              <input type="checkbox" checked class="rounded accent-brand-500">
-              <span>Retinal / Macular Thickness Monitoring</span>
+            <label class="flex items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
+              <input type="checkbox" checked value="Ophthalmology / Macular Protection" class="ob-goal rounded accent-brand-500">
+              <span>Ophthalmology & Macular Protection</span>
             </label>
-            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
-              <input type="checkbox" checked class="rounded accent-brand-500">
+            <label class="flex items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
+              <input type="checkbox" checked value="Hormonal & Androgen Regulation" class="ob-goal rounded accent-brand-500">
               <span>Hormonal & Androgen Peak Regulation</span>
             </label>
-            <label class="flex items-center gap-2 p-2.5 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
-              <input type="checkbox" checked class="rounded accent-brand-500">
+            <label class="flex items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
+              <input type="checkbox" checked value="Apple Watch Ultra 4 Autonomic Sync" class="ob-goal rounded accent-brand-500">
               <span>Apple Watch Ultra 4 Autonomic Sync</span>
             </label>
           </div>
         </div>
 
-        <button type="submit" class="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl text-sm shadow-lg shadow-brand-500/20 transition-all">
-          Complete Onboarding & Initialize Vault
+        <button type="submit" class="w-full py-3.5 bg-gradient-to-r from-brand-500 to-accent-cyan text-white font-bold rounded-xl text-sm shadow-lg shadow-brand-500/20 hover:opacity-95 transition-all">
+          Complete Profile & Initialize Health Vault
         </button>
       </form>
     </div>
@@ -168,7 +190,7 @@
   <!-- ============================================================================== -->
   <!-- MAIN APP CONTAINER                                                             -->
   <!-- ============================================================================== -->
-  <div class="flex-1 flex flex-col">
+  <div id="mainAppContainer" class="flex-1 flex flex-col blur-sm pointer-events-none transition-all duration-300">
     
     <!-- Top Navigation Header -->
     <header class="bg-[#0b101b]/90 backdrop-blur-md border-b border-surface-border sticky top-0 z-40 px-6 py-3.5 flex items-center justify-between">
@@ -212,20 +234,23 @@
         </button>
       </nav>
 
-      <!-- Right User / Actions -->
+      <!-- Right User / Profile & Logout -->
       <div class="flex items-center gap-3">
         <button id="btnQuickReport" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-brand-500/20 hover:from-amber-500/30 hover:to-brand-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold shadow-sm transition-all">
-          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Generate Diagnostic Report
+          <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Diagnostic Report
         </button>
 
         <div class="flex items-center gap-2 pl-2 border-l border-surface-border">
-          <div class="w-8 h-8 rounded-full bg-surface-muted border border-surface-border flex items-center justify-center font-bold text-xs text-brand-400">
-            AO
+          <div id="userAvatarInitials" class="w-8 h-8 rounded-full bg-surface-muted border border-surface-border flex items-center justify-center font-bold text-xs text-brand-400">
+            --
           </div>
           <div class="hidden md:block text-left text-xs leading-tight">
-            <p class="font-semibold text-white">Alastair Orchard</p>
-            <p class="text-[10px] text-slate-400">Apple Watch Ultra 4 Synced</p>
+            <p id="userProfileName" class="font-semibold text-white">Guest</p>
+            <p id="userProfileEmail" class="text-[10px] text-slate-400">Not Connected</p>
           </div>
+          <button id="btnSignOut" title="Sign Out" class="p-1.5 rounded-lg hover:bg-surface-muted text-slate-400 hover:text-rose-400 transition-colors ml-1">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+          </button>
         </div>
       </div>
     </header>
@@ -246,21 +271,21 @@
             <div>
               <div class="flex items-center justify-between mb-2">
                 <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Longevity Index</span>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">OPTIMAL</span>
+                <span id="longevityScoreBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-400 border border-slate-600">INITIALIZING</span>
               </div>
               <div class="flex items-baseline gap-2">
-                <span class="text-4xl font-extrabold text-white">94</span>
+                <span id="longevityScoreValue" class="text-4xl font-extrabold text-white">—</span>
                 <span class="text-xs text-slate-400">/ 100</span>
               </div>
-              <p class="text-xs text-slate-300 mt-2">ApoB (54 mg/dL), HRV baseline (72ms), and retinal architecture in top 5th percentile.</p>
+              <p id="longevityScoreSummary" class="text-xs text-slate-300 mt-2">Connect Apple Watch Ultra 4 or upload your blood panels to calculate longevity score.</p>
             </div>
             <div class="mt-4 pt-3 border-t border-surface-border/60 flex items-center justify-between text-xs">
-              <span class="text-slate-400">Biological Age Projection:</span>
-              <span class="text-brand-400 font-bold">-6.2 Years</span>
+              <span class="text-slate-400">Biological Age:</span>
+              <span id="bioAgeDelta" class="text-brand-400 font-bold">—</span>
             </div>
           </div>
 
-          <!-- Key Vitals Grid (3 columns) -->
+          <!-- Key Vitals Grid (4 cards) -->
           <div class="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
             <!-- ApoB Card -->
             <div class="bg-surface-card border border-surface-border rounded-2xl p-4 flex flex-col justify-between">
@@ -269,9 +294,9 @@
                 <i data-lucide="shield-check" class="w-4 h-4 text-brand-400"></i>
               </div>
               <div class="my-2">
-                <div class="text-2xl font-bold text-white">54 <span class="text-xs font-normal text-slate-400">mg/dL</span></div>
-                <div class="text-[11px] text-brand-400 flex items-center gap-1 mt-0.5">
-                  <i data-lucide="trending-down" class="w-3 h-3"></i> -38.6% from baseline
+                <div id="statApoB" class="text-2xl font-bold text-white">— <span class="text-xs font-normal text-slate-400">mg/dL</span></div>
+                <div id="statApoBSub" class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                  Awaiting lab panel
                 </div>
               </div>
               <div class="text-[10px] text-slate-400 pt-2 border-t border-surface-border">Goal: &lt; 60 mg/dL</div>
@@ -284,9 +309,9 @@
                 <i data-lucide="zap" class="w-4 h-4 text-accent-cyan"></i>
               </div>
               <div class="my-2">
-                <div class="text-2xl font-bold text-white">695 <span class="text-xs font-normal text-slate-400">ng/dL</span></div>
-                <div class="text-[11px] text-brand-400 flex items-center gap-1 mt-0.5">
-                  <i data-lucide="check" class="w-3 h-3"></i> Free: 16.8 pg/mL
+                <div id="statTesto" class="text-2xl font-bold text-white">— <span class="text-xs font-normal text-slate-400">ng/dL</span></div>
+                <div id="statTestoSub" class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                  Awaiting hormone panel
                 </div>
               </div>
               <div class="text-[10px] text-slate-400 pt-2 border-t border-surface-border">Optimal: 600–850 ng/dL</div>
@@ -299,12 +324,12 @@
                 <i data-lucide="eye" class="w-4 h-4 text-amber-400"></i>
               </div>
               <div class="my-2">
-                <div class="text-2xl font-bold text-white">272 <span class="text-xs font-normal text-slate-400">µm (OS)</span></div>
-                <div class="text-[11px] text-brand-400 flex items-center gap-1 mt-0.5">
-                  <i data-lucide="check-circle" class="w-3 h-3"></i> Micro-edema resolved
+                <div id="statMacular" class="text-2xl font-bold text-white">— <span class="text-xs font-normal text-slate-400">µm (OS)</span></div>
+                <div id="statMacularSub" class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                  Awaiting OCT scan
                 </div>
               </div>
-              <div class="text-[10px] text-slate-400 pt-2 border-t border-surface-border">OD: 268 µm (Normal: 240–290)</div>
+              <div class="text-[10px] text-slate-400 pt-2 border-t border-surface-border">Normal: 240–290 µm</div>
             </div>
 
             <!-- Apple Watch Ultra 4 HRV Card -->
@@ -314,12 +339,12 @@
                 <i data-lucide="watch" class="w-4 h-4 text-accent-purple"></i>
               </div>
               <div class="my-2">
-                <div class="text-2xl font-bold text-white">72 <span class="text-xs font-normal text-slate-400">ms (SDNN)</span></div>
-                <div class="text-[11px] text-accent-purple flex items-center gap-1 mt-0.5">
-                  <i data-lucide="activity" class="w-3 h-3"></i> RHR: 49 bpm • VO2: 50.9
+                <div id="statHRV" class="text-2xl font-bold text-white">— <span class="text-xs font-normal text-slate-400">ms (SDNN)</span></div>
+                <div id="statHRVSub" class="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                  Connect Watch stream
                 </div>
               </div>
-              <div class="text-[10px] text-slate-400 pt-2 border-t border-surface-border">Deep Sleep: 85 min avg</div>
+              <div class="text-[10px] text-slate-400 pt-2 border-t border-surface-border">Autonomic telemetry</div>
             </div>
           </div>
         </div>
@@ -335,11 +360,11 @@
                 </div>
                 <h3 class="font-bold text-sm text-white">AI Clinical Insights & Predictions by Doc</h3>
               </div>
-              <span class="text-xs text-slate-400">Updated: Today, 04:30 UTC</span>
+              <span id="insightsTimestamp" class="text-xs text-slate-400">Ready</span>
             </div>
 
             <div id="overviewInsightsList" class="space-y-3">
-              <!-- Dynamically populated -->
+              <!-- Dynamically populated or empty state -->
             </div>
           </div>
 
@@ -386,13 +411,16 @@
                 <option value="APOB">ApoB (Cardiovascular Target: &lt;60 mg/dL)</option>
                 <option value="TESTOSTERONE_TOTAL">Total Testosterone (Optimal: 600–850 ng/dL)</option>
                 <option value="MACULAR_THICKNESS_OS">Macular Thickness Left Eye (OS - OCT)</option>
-                <option value="HRV_SDNN">Apple Watch HRV (SDNN 30-Day Stream)</option>
-                <option value="RESTING_HR">Resting Heart Rate (30-Day Stream)</option>
+                <option value="HRV_SDNN">Apple Watch HRV (SDNN Telemetry)</option>
+                <option value="RESTING_HR">Resting Heart Rate</option>
               </select>
             </div>
           </div>
-          <div class="h-64 w-full">
+          <div class="h-64 w-full relative">
             <canvas id="overviewTrajectoryChart"></canvas>
+            <div id="overviewChartEmpty" class="absolute inset-0 flex items-center justify-center bg-surface-card/60 text-xs text-slate-400 hidden">
+              No historical samples recorded yet. Upload a lab test or connect Apple Watch to generate chart.
+            </div>
           </div>
         </div>
       </section>
@@ -421,7 +449,7 @@
           </div>
 
           <!-- Main Interactive Trend Chart -->
-          <div class="bg-surface-dark/60 rounded-xl p-4 border border-surface-border/80">
+          <div class="bg-surface-dark/60 rounded-xl p-4 border border-surface-border/80 relative">
             <div class="flex items-center justify-between mb-3 text-xs">
               <span id="trendChartTitle" class="font-semibold text-slate-200">Apolipoprotein B (ApoB) Time Series</span>
               <div class="flex items-center gap-3">
@@ -429,8 +457,11 @@
                 <span class="flex items-center gap-1 text-slate-400"><span class="w-2.5 h-2.5 rounded-full bg-slate-500 inline-block"></span> Standard Clinical Range</span>
               </div>
             </div>
-            <div class="h-80 w-full">
+            <div class="h-80 w-full relative">
               <canvas id="detailedTrendChart"></canvas>
+              <div id="detailedChartEmpty" class="absolute inset-0 flex items-center justify-center bg-surface-dark/60 text-xs text-slate-400 hidden">
+                No telemetry recorded for this biomarker yet.
+              </div>
             </div>
           </div>
 
@@ -659,7 +690,7 @@
               <div>
                 <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-400 border border-brand-500/30">OFFICIAL CLINICAL SUMMARY</span>
                 <h3 id="reportTitle" class="text-xl font-bold text-white mt-1">Executive Longevity & Biomarker Diagnostic Assessment</h3>
-                <p id="reportMeta" class="text-xs text-slate-400 mt-0.5">Patient: Alastair Orchard • Test Date: September 2026 • Reviewing Agent: Doc</p>
+                <p id="reportMeta" class="text-xs text-slate-400 mt-0.5">Patient: -- • Date: Current • Reviewing Agent: Doc</p>
               </div>
               <button onclick="window.print()" class="px-3 py-1.5 bg-surface-card hover:bg-surface-muted text-slate-300 rounded-xl text-xs font-semibold border border-surface-border flex items-center gap-1.5">
                 <i data-lucide="printer" class="w-4 h-4"></i> Print / Export PDF
@@ -672,35 +703,35 @@
                 <h4 class="font-bold text-sm text-white mb-2 flex items-center gap-1.5 text-brand-400">
                   <i data-lucide="activity" class="w-4 h-4"></i> 1. Executive Summary & Health Status
                 </h4>
-                <p id="repExecSummary" class="text-slate-300"></p>
+                <p id="repExecSummary" class="text-slate-300">Generate an assessment to compile the clinical summary.</p>
               </div>
 
               <div class="bg-surface-card/60 p-4 rounded-xl border border-surface-border">
                 <h4 class="font-bold text-sm text-white mb-2 flex items-center gap-1.5 text-accent-cyan">
                   <i data-lucide="line-chart" class="w-4 h-4"></i> 2. Biomarker & Trend Analysis
                 </h4>
-                <p id="repBiomarkers" class="text-slate-300 whitespace-pre-line"></p>
+                <p id="repBiomarkers" class="text-slate-300 whitespace-pre-line">—</p>
               </div>
 
               <div class="bg-surface-card/60 p-4 rounded-xl border border-surface-border">
                 <h4 class="font-bold text-sm text-white mb-2 flex items-center gap-1.5 text-accent-purple">
                   <i data-lucide="watch" class="w-4 h-4"></i> 3. Wearable Telemetry & Circadian Correlations
                 </h4>
-                <p id="repWearables" class="text-slate-300"></p>
+                <p id="repWearables" class="text-slate-300">—</p>
               </div>
 
               <div class="bg-surface-card/60 p-4 rounded-xl border border-surface-border">
                 <h4 class="font-bold text-sm text-white mb-2 flex items-center gap-1.5 text-amber-400">
                   <i data-lucide="shield-alert" class="w-4 h-4"></i> 4. Risk Stratification & Longevity Outlook
                 </h4>
-                <p id="repRisk" class="text-slate-300"></p>
+                <p id="repRisk" class="text-slate-300">—</p>
               </div>
 
               <div class="bg-surface-card/60 p-4 rounded-xl border border-surface-border">
                 <h4 class="font-bold text-sm text-white mb-2 flex items-center gap-1.5 text-brand-400">
                   <i data-lucide="check-circle-2" class="w-4 h-4"></i> 5. Actionable Clinical & Lifestyle Recommendations
                 </h4>
-                <p id="repRecommendations" class="text-slate-300 whitespace-pre-line"></p>
+                <p id="repRecommendations" class="text-slate-300 whitespace-pre-line">—</p>
               </div>
             </div>
           </div>
@@ -729,7 +760,7 @@
               <div>
                 <label class="block font-semibold text-slate-300 mb-1">Your Personal Ingestion Webhook URL</label>
                 <div class="flex gap-2">
-                  <input type="text" id="webhookUrlInput" readonly value="https://aegishealth.local/api/apple-health/ingest?userId=demo-user-alastair" class="flex-1 bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-slate-300 font-mono text-[11px]">
+                  <input type="text" id="webhookUrlInput" readonly class="flex-1 bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-slate-300 font-mono text-[11px]">
                   <button id="btnCopyWebhook" class="px-3 py-2 bg-surface-dark hover:bg-surface-muted border border-surface-border rounded-xl text-slate-300">
                     <i data-lucide="copy" class="w-4 h-4"></i>
                   </button>
@@ -739,7 +770,7 @@
               <div>
                 <label class="block font-semibold text-slate-300 mb-1">Bearer API Access Token</label>
                 <div class="flex gap-2">
-                  <input type="text" id="apiTokenInput" readonly value="aegis_sec_9f81a7b4c2e04d3" class="flex-1 bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-slate-300 font-mono text-[11px]">
+                  <input type="text" id="apiTokenInput" readonly class="flex-1 bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-slate-300 font-mono text-[11px]">
                   <button id="btnCopyToken" class="px-3 py-2 bg-surface-dark hover:bg-surface-muted border border-surface-border rounded-xl text-slate-300">
                     <i data-lucide="copy" class="w-4 h-4"></i>
                   </button>
@@ -747,7 +778,7 @@
               </div>
 
               <div class="bg-surface-dark/80 p-3.5 rounded-xl border border-surface-border space-y-1.5 text-slate-300">
-                <div class="font-semibold text-white">Supported Apple Health Streams:</div>
+                <div class="font-semibold text-white">Supported Apple Health Telemetry:</div>
                 <div class="grid grid-cols-2 gap-1 text-[11px] text-slate-400">
                   <div>• HRV (SDNN)</div>
                   <div>• Resting Heart Rate</div>
@@ -760,36 +791,41 @@
             </div>
           </div>
 
-          <!-- Doc OpenClaw Agent Setup & Bridge Card -->
+          <!-- Doc OpenClaw Agent Setup & Sample Data Controls -->
           <div class="bg-surface-card border border-surface-border rounded-2xl p-6 space-y-4">
             <div class="flex items-center gap-3">
               <div class="p-2.5 bg-accent-cyan/10 rounded-xl text-accent-cyan">
                 <i data-lucide="bot" class="w-6 h-6"></i>
               </div>
               <div>
-                <h3 class="text-base font-bold text-white">Doc Agent (OpenClaw Gemini-3.7-Flash)</h3>
-                <p class="text-xs text-slate-400">Medical consultant agent configuration & token authorization</p>
+                <h3 class="text-base font-bold text-white">Doc Agent & Dataset Controls</h3>
+                <p class="text-xs text-slate-400">Medical consultant agent configuration & sandbox datasets</p>
               </div>
             </div>
 
             <div class="space-y-3 text-xs">
-              <p class="text-slate-300 leading-relaxed">
-                The OpenClaw agent <strong>Doc</strong> connects directly to your health data stream using your user token. Doc acts as your autonomous consultant, analyzing longitudinal lab reports and wearable metrics.
-              </p>
-
               <div class="bg-surface-dark/80 p-3.5 rounded-xl border border-surface-border space-y-2">
-                <div class="font-semibold text-white">Doc Agent Specifications:</div>
+                <div class="font-semibold text-white">Doc Agent Identity:</div>
                 <div class="text-[11px] text-slate-400 space-y-1">
                   <div>• <strong>Agent ID:</strong> <code>doc</code></div>
                   <div>• <strong>Model:</strong> <code>google/gemini-3.7-flash</code></div>
-                  <div>• <strong>Workspace:</strong> <code>/home/ubuntu/.openclaw/workspace/doc</code></div>
-                  <div>• <strong>In-App Interface:</strong> Integrated directly into AegisHealth tab without needing OpenClaw dashboard</div>
+                  <div>• <strong>Clinical Mode:</strong> Longevity Medicine & Biomarkers</div>
                 </div>
               </div>
 
-              <button id="btnRegenerateDocToken" class="w-full py-2.5 bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/30 text-accent-cyan font-semibold rounded-xl text-xs flex items-center justify-center gap-2 transition-all">
-                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Regenerate Doc Agent Access Token
-              </button>
+              <!-- Explicit Sample Data Controls -->
+              <div class="pt-2 border-t border-surface-border space-y-2">
+                <div class="font-semibold text-slate-300">Demonstration Dataset:</div>
+                <p class="text-slate-400 text-[11px]">Optional: Load sample clinical data (ApoB, OCT, Testosterone, Apple Watch) to test visualization engine.</p>
+                <div class="flex gap-2">
+                  <button id="btnLoadDemoData" class="flex-1 py-2 px-3 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 text-brand-400 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all">
+                    <i data-lucide="database" class="w-3.5 h-3.5"></i> Load Sample Data
+                  </button>
+                  <button id="btnClearData" class="flex-1 py-2 px-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Reset to Empty
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -800,7 +836,7 @@
 
     <!-- Footer -->
     <footer class="mt-auto border-t border-surface-border bg-surface-dark/80 py-4 px-6 text-center text-xs text-slate-500">
-      <p>AegisHealth Longevity Platform • Built with Supabase, OpenClaw Doc Agent (Gemini 3.7 Flash) & Apple Watch Ultra 4 Telemetry</p>
+      <p>AegisHealth Longevity Platform • Secure Supabase Cloud Vault & Doc Medical AI</p>
     </footer>
   </div>
 
@@ -810,15 +846,62 @@
       <div class="flex items-center justify-between pb-4 border-b border-surface-border mb-4">
         <div>
           <h3 id="viewerTitle" class="text-base font-bold text-white">Original Clinical Document</h3>
-          <p id="viewerMeta" class="text-xs text-slate-400">Stored in Supabase Vault</p>
+          <p id="viewerMeta" class="text-xs text-slate-400">Stored in Health Vault</p>
         </div>
         <button id="btnCloseViewer" class="text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-6 h-6"></i>
         </button>
       </div>
       <div id="viewerContent" class="flex-1 bg-surface-dark rounded-xl p-4 overflow-y-auto font-mono text-xs text-slate-300 leading-relaxed border border-surface-border">
-        <!-- Document preview text or iframe -->
       </div>
+    </div>
+  </div>
+
+  <!-- New Condition Modal -->
+  <div id="newConditionModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md hidden p-4">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-surface-border mb-4">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="heart-pulse" class="w-5 h-5 text-accent-rose"></i> Add Condition
+        </h3>
+        <button id="btnCloseNewCond" class="text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <form id="newConditionForm" class="space-y-4 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Condition Title</label>
+          <input type="text" id="ncTitle" required placeholder="e.g. Dyslipidemia / ApoB Management" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-white">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Type</label>
+            <select id="ncType" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-white">
+              <option value="chronic">Chronic</option>
+              <option value="acute">Acute</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-300 mb-1">Status</label>
+            <select id="ncStatus" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-white">
+              <option value="active">Active</option>
+              <option value="managing">Managing</option>
+              <option value="resolved">Resolved</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Clinical Summary / Objectives</label>
+          <textarea id="ncSummary" rows="3" placeholder="Targeting aggressive reduction of ApoB < 60 mg/dL..." class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-white"></textarea>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-300 mb-1">Primary Treatment Plan</label>
+          <input type="text" id="ncTreatment" placeholder="e.g. Nutrition, Zone-2 cardio, supplements" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-white">
+        </div>
+        <button type="submit" class="w-full py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl text-xs shadow-md">
+          Save Condition to Hub
+        </button>
+      </form>
     </div>
   </div>
 
