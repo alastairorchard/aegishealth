@@ -2054,6 +2054,18 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLabDocsGrid();
   };
 
+  
+  // Utility Helper
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   function renderLabDocsGrid() {
     ensureLabDocumentsSynchronized();
     const grid = document.getElementById('labDocsGrid');
