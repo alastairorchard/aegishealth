@@ -1528,6 +1528,60 @@ document.addEventListener('DOMContentLoaded', () => {
     chatContainer.scrollTop = chatContainer.scrollHeight;
   }
 
+
+  // ==========================================
+  // DIRECT GOOGLE GEMINI 3.7 / 2.0 FLASH CLINICAL ENGINE
+  // ==========================================
+  const DOC_SYSTEM_INSTRUCTION = `You are Doc (🩺), a premier AI Medical Consultant and Clinical Biomarker Intelligence Specialist operating within OpenClaw. Your model is google/gemini-3.7-flash.
+You provide rigorous, evidence-based, mechanistic clinical consultations strictly grounded in the patient's verified laboratory biomarkers, ophthalmology OCT scans, condition histories, and continuous Apple Watch Ultra 4 telemetry.
+
+Core Clinical Architecture:
+- Cardiovascular & Lipids: ApoB optimal longevity target is < 60 mg/dL (halting sub-endothelial atherogenic particle retention). Triglyceride/HDL ratio < 1.5 indicates optimal insulin sensitivity.
+- Endocrinology: Maintain optimal physiological androgen status (Total Testosterone ~600-850 ng/dL); evaluate nocturnal deep sleep correlation with LH/GH pulsatile secretion.
+- Ophthalmology & Retina: Macular Central Subfield Thickness (CST) baseline ~260-275 µm. Subfoveal fluid or acute thickening (>290 µm) warrants monitoring and targeted macular carotenoids (Lutein 10-20mg, Zeaxanthin 2-4mg, Astaxanthin 4-6mg, high-DHA Omega-3).
+- Autonomic Telemetry: Monitor continuous HRV (SDNN), Resting Heart Rate, Deep Sleep (>80 min), and VO2 Max (>50 mL/kg/min).
+
+Tone & Structure:
+Be thorough, structured, empathetic, and relentlessly evidence-based. Format responses with clean Markdown headers, bullet points, and actionable next steps. Never invent fictional lab values.`;
+
+  async function queryGeminiDirect(promptText, apiKey) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const payload = {
+      contents: [
+        {
+          role: 'user',
+          parts: [{ text: promptText }]
+        }
+      ],
+      systemInstruction: {
+        parts: [{ text: DOC_SYSTEM_INSTRUCTION }]
+      },
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 2048
+      }
+    };
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson?.error?.message || `Gemini API returned HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    const candidate = data.candidates?.[0];
+    const textPart = candidate?.content?.parts?.[0]?.text;
+    if (!textPart) {
+      throw new Error('Gemini API returned empty response.');
+    }
+    return textPart;
+  }
+
   const docChatForm = document.getElementById('docChatForm');
   if (docChatForm) {
     docChatForm.addEventListener('submit', async (e) => {
@@ -1544,72 +1598,83 @@ document.addEventListener('DOMContentLoaded', () => {
       input.value = '';
       renderDocChatMessages();
 
-      // Typing placeholder
+      // Typing indicator
       const tempId = 'temp-typing-' + Date.now();
       state.messages.push({
         id: tempId,
         sender_role: 'doc_agent',
-        content: '🩺 *Doc is synthesizing your laboratory panels and telemetry...*',
+        content: '🩺 *Doc is synthesizing your laboratory panels and physiological telemetry...*',
         created_at: new Date().toISOString()
       });
       renderDocChatMessages();
 
-      try {
-        const payload = {
-          message: val,
-          userId: state.currentUser?.id || 'demo-user-alastair',
-          clientContext: {
-            profile: state.currentUser,
-            biomarkers: state.biomarkers,
-            conditions: state.conditions,
-            wearables: state.wearableMetrics
+      // Construct rich clinical dossier prompt
+      const dossierPrompt = `[Patient Overview]:
+Name: ${state.currentUser?.fullName || 'Alastair Orchard'}
+DOB: ${state.currentUser?.dob || '1982-06-15'}, Sex: ${state.currentUser?.sex || 'Male'}
+Primary Health Goals: ${state.currentUser?.goals ? state.currentUser.goals.join(', ') : 'Cardiovascular longevity, macular optimization, autonomic recovery'}
+
+[Verified Clinical Laboratory Biomarkers]:
+${state.biomarkers.length > 0 ? state.biomarkers.map(b => `- ${b.biomarker_name || b.name}: ${b.value} ${b.unit} (Tested: ${b.test_date}, Category: ${b.category})`).join('\n') : 'No blood panels ingested yet.'}
+
+[Tracked Health Conditions]:
+${state.conditions.length > 0 ? state.conditions.map(c => `- ${c.title} [Status: ${c.status}, Type: ${c.condition_type}]: ${c.clinical_summary || ''}`).join('\n') : 'No active conditions tracked.'}
+
+[Apple Watch Ultra 4 Wearable Telemetry]:
+${state.wearableMetrics.length > 0 ? state.wearableMetrics.slice(-15).map(w => `- ${w.metric_type || w.name}: ${w.value} ${w.unit} (${w.timestamp || w.date})`).join('\n') : 'No live wearable stream ingested.'}
+
+[Patient Consultation Request]:
+${val}`;
+
+      const geminiKey = localStorage.getItem('aegis_gemini_key') || localStorage.getItem('gemini_api_key');
+      let finalReply = '';
+
+      if (geminiKey) {
+        // Direct Google Gemini API Execution
+        try {
+          finalReply = await queryGeminiDirect(dossierPrompt, geminiKey);
+        } catch (geminiErr) {
+          console.error('Direct Gemini error:', geminiErr);
+          finalReply = `⚠️ **Google Gemini API Error:** ${geminiErr.message}\n\nPlease check your Gemini API key in the **Devices & Cloud** tab.`;
+        }
+      } else {
+        // Try Backend Endpoint
+        const endpoint = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'https://openclaw-cloud-us.tail88a4c9.ts.net/aegis/api/doc/chat' : '/api/doc/chat');
+        try {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: val,
+              userId: state.currentUser?.id || 'demo-user-alastair',
+              clientContext: {
+                profile: state.currentUser,
+                biomarkers: state.biomarkers,
+                conditions: state.conditions,
+                wearables: state.wearableMetrics
+              }
+            })
+          });
+
+          const data = await res.json();
+          if (res.ok && data?.reply) {
+            finalReply = data.reply;
+          } else {
+            throw new Error(data?.message || `Server returned HTTP ${res.status}`);
           }
-        };
-
-        // Determine Doc Agent Endpoint (local or configured remote/tailscale URL)
-        let endpoint = localStorage.getItem('aegis_doc_endpoint') || '/api/doc/chat';
-        if (window.location.hostname.includes('github.io') && endpoint === '/api/doc/chat') {
-          // If on static GitHub Pages, point to live Tailscale / local node by default
-          endpoint = 'http://100.68.142.44:3000/api/doc/chat';
+        } catch (backendErr) {
+          console.error('Backend endpoint error:', backendErr);
+          finalReply = `🩺 **Doc Agent Connection Required:**\n\nYou are accessing AegisHealth from an external device outside the local OpenClaw host.\n\nTo enable live Doc consultations from any browser worldwide, please **enter your Google Gemini API Key** in the **Devices & Cloud** tab (or set your HTTPS endpoint to \`https://openclaw-cloud-us.tail88a4c9.ts.net/aegis/api/doc/chat\`).`;
         }
-
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        
-        // Remove typing placeholder
-        state.messages = state.messages.filter(m => m.id !== tempId);
-
-        if (res.ok && data && data.reply) {
-          state.messages.push({
-            sender_role: 'doc_agent',
-            content: data.reply,
-            created_at: new Date().toISOString()
-          });
-        } else {
-          const errMsg = data?.message || `Server returned HTTP ${res.status}`;
-          state.messages.push({
-            sender_role: 'doc_agent',
-            content: `⚠️ **OpenClaw Doc Agent Error:** ${errMsg}\n\nPlease check your Doc Agent endpoint in **Devices & Cloud** tab.`,
-            created_at: new Date().toISOString()
-          });
-        }
-
-      } catch (err) {
-        console.error('Doc API network error:', err);
-        state.messages = state.messages.filter(m => m.id !== tempId);
-        
-        const endpoint = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'http://100.68.142.44:3000/api/doc/chat' : '/api/doc/chat');
-        state.messages.push({
-          sender_role: 'doc_agent',
-          content: `⚠️ **Could not connect to OpenClaw Doc Agent:**\n\n- **Target Endpoint:** \`${endpoint}\`\n- **Error:** ${err.message}\n\n*To fix:* Ensure the AegisHealth backend server is running on this machine (or via Tailscale IP \`100.68.142.44:3000\`), or update your endpoint URL in the **Devices & Cloud** tab.`,
-          created_at: new Date().toISOString()
-        });
       }
+
+      // Remove typing placeholder & render actual reply
+      state.messages = state.messages.filter(m => m.id !== tempId);
+      state.messages.push({
+        sender_role: 'doc_agent',
+        content: finalReply,
+        created_at: new Date().toISOString()
+      });
 
       saveUserData();
       renderDocChatMessages();
@@ -2054,3 +2119,41 @@ document.addEventListener('DOMContentLoaded', () => {
   // Check initial session
   checkSession();
 });
+
+
+  const geminiInput = document.getElementById('geminiApiKeyInput');
+  const btnSaveGeminiKey = document.getElementById('btnSaveGeminiKey');
+  const geminiBadge = document.getElementById('geminiKeyStatusBadge');
+
+  function updateGeminiKeyBadge() {
+    const key = localStorage.getItem('aegis_gemini_key');
+    if (geminiBadge) {
+      if (key && key.length > 5) {
+        geminiBadge.textContent = 'Active (Connected)';
+        geminiBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      } else {
+        geminiBadge.textContent = 'Not Set';
+        geminiBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-dark text-slate-400';
+      }
+    }
+    if (geminiInput && key) {
+      geminiInput.value = key;
+    }
+  }
+
+  updateGeminiKeyBadge();
+
+  if (btnSaveGeminiKey) {
+    btnSaveGeminiKey.addEventListener('click', () => {
+      const val = document.getElementById('geminiApiKeyInput').value.trim();
+      if (val) {
+        localStorage.setItem('aegis_gemini_key', val);
+        updateGeminiKeyBadge();
+        alert('Google Gemini API Key saved successfully! Doc is now active.');
+      } else {
+        localStorage.removeItem('aegis_gemini_key');
+        updateGeminiKeyBadge();
+        alert('Gemini API Key removed.');
+      }
+    });
+  }
