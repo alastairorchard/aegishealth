@@ -1528,84 +1528,6 @@ document.addEventListener('DOMContentLoaded', () => {
     chatContainer.scrollTop = chatContainer.scrollHeight;
   }
 
-
-  // ==========================================
-  // DIRECT GOOGLE GEMINI 3.7 / 2.0 FLASH CLINICAL ENGINE
-  // ==========================================
-  const DOC_SYSTEM_INSTRUCTION = `You are Doc (🩺), a premier AI Medical Consultant and Clinical Biomarker Intelligence Specialist operating within OpenClaw. Your model is google/gemini-3.7-flash.
-You provide rigorous, evidence-based, mechanistic clinical consultations strictly grounded in the patient's verified laboratory biomarkers, ophthalmology OCT scans, condition histories, and continuous Apple Watch Ultra 4 telemetry.
-
-Core Clinical Architecture:
-- Cardiovascular & Lipids: ApoB optimal longevity target is < 60 mg/dL (halting sub-endothelial atherogenic particle retention). Triglyceride/HDL ratio < 1.5 indicates optimal insulin sensitivity.
-- Endocrinology: Maintain optimal physiological androgen status (Total Testosterone ~600-850 ng/dL); evaluate nocturnal deep sleep correlation with LH/GH pulsatile secretion.
-- Ophthalmology & Retina: Macular Central Subfield Thickness (CST) baseline ~260-275 µm. Subfoveal fluid or acute thickening (>290 µm) warrants monitoring and targeted macular carotenoids (Lutein 10-20mg, Zeaxanthin 2-4mg, Astaxanthin 4-6mg, high-DHA Omega-3).
-- Autonomic Telemetry: Monitor continuous HRV (SDNN), Resting Heart Rate, Deep Sleep (>80 min), and VO2 Max (>50 mL/kg/min).
-
-Tone & Structure:
-Be thorough, structured, empathetic, and relentlessly evidence-based. Format responses with clean Markdown headers, bullet points, and actionable next steps. Never invent fictional lab values.`;
-
-    async function queryGeminiDirect(promptText, apiKey) {
-    const candidateModels = [
-      'gemini-2.5-flash',
-      'gemini-1.5-flash',
-      'gemini-2.0-flash-exp',
-      'gemini-2.5-pro',
-      'gemini-1.5-pro'
-    ];
-
-    const payload = {
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: promptText }]
-        }
-      ],
-      systemInstruction: {
-        parts: [{ text: DOC_SYSTEM_INSTRUCTION }]
-      },
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 2048
-      }
-    };
-
-    let lastError = null;
-
-    for (const modelId of candidateModels) {
-      try {
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=***}`;
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const candidate = data.candidates?.[0];
-          const textPart = candidate?.content?.parts?.[0]?.text;
-          if (textPart) {
-            return textPart;
-          }
-        } else {
-          const errJson = await res.json().catch(() => ({}));
-          const errMsg = errJson?.error?.message || `HTTP ${res.status}`;
-          lastError = new Error(`[${modelId}] ${errMsg}`);
-          // If model is not found/deprecated, continue to next candidate
-          if (res.status === 404 || errMsg.includes('not found') || errMsg.includes('no longer available')) {
-            continue;
-          } else {
-            throw lastError;
-          }
-        }
-      } catch (err) {
-        lastError = err;
-      }
-    }
-
-    throw lastError || new Error('Could not connect to any active Google Gemini model.');
-  }
-
   const docChatForm = document.getElementById('docChatForm');
   if (docChatForm) {
     docChatForm.addEventListener('submit', async (e) => {
@@ -1627,35 +1549,18 @@ Be thorough, structured, empathetic, and relentlessly evidence-based. Format res
       state.messages.push({
         id: tempId,
         sender_role: 'doc_agent',
-        content: '🩺 *Doc is synthesizing your laboratory panels and physiological telemetry...*',
+        content: '🩺 *Doc is reviewing your clinical dossier and consulting OpenClaw memory...*',
         created_at: new Date().toISOString()
       });
       renderDocChatMessages();
 
-      // Construct rich clinical dossier prompt
-      const dossierPrompt = `[Patient Overview]:
-Name: ${state.currentUser?.fullName || 'Alastair Orchard'}
-DOB: ${state.currentUser?.dob || '1982-06-15'}, Sex: ${state.currentUser?.sex || 'Male'}
-Primary Health Goals: ${state.currentUser?.goals ? state.currentUser.goals.join(', ') : 'Cardiovascular longevity, macular optimization, autonomic recovery'}
-
-[Verified Clinical Laboratory Biomarkers]:
-${state.biomarkers.length > 0 ? state.biomarkers.map(b => `- ${b.biomarker_name || b.name}: ${b.value} ${b.unit} (Tested: ${b.test_date}, Category: ${b.category})`).join('\n') : 'No blood panels ingested yet.'}
-
-[Tracked Health Conditions]:
-${state.conditions.length > 0 ? state.conditions.map(c => `- ${c.title} [Status: ${c.status}, Type: ${c.condition_type}]: ${c.clinical_summary || ''}`).join('\n') : 'No active conditions tracked.'}
-
-[Apple Watch Ultra 4 Wearable Telemetry]:
-${state.wearableMetrics.length > 0 ? state.wearableMetrics.slice(-15).map(w => `- ${w.metric_type || w.name}: ${w.value} ${w.unit} (${w.timestamp || w.date})`).join('\n') : 'No live wearable stream ingested.'}
-
-[Patient Consultation Request]:
-${val}`;
-
       let finalReply = '';
-      const endpoint = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat' : '/api/doc/chat');
+      const endpoint = window.location.hostname.includes('github.io') 
+        ? 'https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat' 
+        : '/api/doc/chat';
 
-      // 1. PRIMARY PATH: Real OpenClaw Doc Agent Backend (with long-term memory & tools)
       try {
-        console.log('[Doc] Querying OpenClaw Doc Agent via HTTPS:', endpoint);
+        console.log('[Doc] Consulting OpenClaw Doc Agent on:', endpoint);
         const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1678,20 +1583,8 @@ ${val}`;
           throw new Error(data?.message || `Server returned HTTP ${res.status}`);
         }
       } catch (backendErr) {
-        console.warn('Backend OpenClaw query failed, checking direct fallback:', backendErr);
-        
-        // 2. SECONDARY PATH: Direct Gemini API (if key is set)
-        const geminiKey = localStorage.getItem('aegis_gemini_key');
-        if (geminiKey && geminiKey.startsWith('AIzaSy')) {
-          try {
-            finalReply = await queryGeminiDirect(dossierPrompt, geminiKey);
-          } catch (geminiErr) {
-            console.error('Direct Gemini error:', geminiErr);
-            finalReply = `⚠️ **Doc Agent Connection Notice:**\n\n1. **OpenClaw Backend:** Could not reach \`${endpoint}\` (${backendErr.message}).\n2. **Direct Gemini API:** ${geminiErr.message}.\n\n*To resolve:* Ensure you are connected to Tailscale on this device to access \`https://ubuntu.tail88a4c9.ts.net:3443\`.`;
-          }
-        } else {
-          finalReply = `⚠️ **Could not connect to OpenClaw Doc Agent:**\n\n- **Target Server:** \`${endpoint}\`\n- **Error:** ${backendErr.message}\n\n*To fix:* Ensure this device is connected to your **Tailscale network** so it can communicate securely with our OpenClaw host (\`ubuntu.tail88a4c9.ts.net\`).`;
-        }
+        console.error('OpenClaw Doc Agent connection error:', backendErr);
+        finalReply = `⚠️ **Could not reach OpenClaw Doc Agent:**\n\n- **Endpoint:** \`${endpoint}\`\n- **Error:** ${backendErr.message}\n\n*To fix:* Ensure this device is connected to your **Tailscale network** (\`ubuntu.tail88a4c9.ts.net\`) so it can access our secure OpenClaw Doc Agent service.`;
       }
 
       // Remove typing placeholder & render actual reply
@@ -2117,20 +2010,7 @@ ${val}`;
   }
 
   
-  const endpointInput = document.getElementById('docAgentEndpointInput');
-  const btnSaveDocEndpoint = document.getElementById('btnSaveDocEndpoint');
-  if (endpointInput) {
-    endpointInput.value = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat' : '/api/doc/chat');
-  }
-  if (btnSaveDocEndpoint) {
-    btnSaveDocEndpoint.addEventListener('click', () => {
-      const val = document.getElementById('docAgentEndpointInput').value.trim();
-      if (val) {
-        localStorage.setItem('aegis_doc_endpoint', val);
-        alert('Doc Agent endpoint saved: ' + val);
-      }
-    });
-  }
+  
 
   const btnCopyToken = document.getElementById('btnCopyToken');
   if (btnCopyToken) {
@@ -2147,39 +2027,4 @@ ${val}`;
 });
 
 
-  const geminiInput = document.getElementById('geminiApiKeyInput');
-  const btnSaveGeminiKey = document.getElementById('btnSaveGeminiKey');
-  const geminiBadge = document.getElementById('geminiKeyStatusBadge');
-
-  function updateGeminiKeyBadge() {
-    const key = localStorage.getItem('aegis_gemini_key');
-    if (geminiBadge) {
-      if (key && key.length > 5) {
-        geminiBadge.textContent = 'Active (Connected)';
-        geminiBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-      } else {
-        geminiBadge.textContent = 'Not Set';
-        geminiBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-dark text-slate-400';
-      }
-    }
-    if (geminiInput && key) {
-      geminiInput.value = key;
-    }
-  }
-
-  updateGeminiKeyBadge();
-
-  if (btnSaveGeminiKey) {
-    btnSaveGeminiKey.addEventListener('click', () => {
-      const val = document.getElementById('geminiApiKeyInput').value.trim();
-      if (val) {
-        localStorage.setItem('aegis_gemini_key', val);
-        updateGeminiKeyBadge();
-        alert('Google Gemini API Key saved successfully! Doc is now active.');
-      } else {
-        localStorage.removeItem('aegis_gemini_key');
-        updateGeminiKeyBadge();
-        alert('Gemini API Key removed.');
-      }
-    });
-  }
+  
