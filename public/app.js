@@ -1240,14 +1240,11 @@ document.addEventListener('DOMContentLoaded', () => {
       // Parse tabular clinical lines from OCR text
       let extractedItems = parseTabularClinicalLines(combinedLines);
 
-      // If OCR yielded few rows, provide standard review rows ready for quick verification
+      btnProcessBatchPages.innerHTML = '<span>⚡</span> Process & Extract Data';
+
       if (extractedItems.length === 0) {
-        extractedItems = [
-          { code: 'TOTAL_CHOLESTEROL', name: 'Total Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
-          { code: 'HDL_CHOLESTEROL', name: 'HDL Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
-          { code: 'LDL_CHOLESTEROL', name: 'LDL Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
-          { code: 'TRIGLYCERIDES', name: 'Triglycerides', value: '', unit: 'mg/dL', category: 'lipids_cardio' }
-        ];
+        alert('⚠️ No clinical lab values or recognized biomarker names found in this photo.\n\nPlease ensure the camera is steady, well-lit, and the text on the paper document is clearly visible, or use \'Enter Lab Results Manually\'.');
+        return;
       }
 
       openLabReviewModal({
@@ -1260,7 +1257,6 @@ document.addEventListener('DOMContentLoaded', () => {
         extractedItems: extractedItems
       });
 
-      btnProcessBatchPages.innerHTML = '<span>⚡</span> Process & Extract Data';
       state.scannedPages = [];
       renderScannedThumbnails();
     });
