@@ -2423,10 +2423,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 
-    // ==========================================
-  // DYNAMIC CLINICAL INSIGHTS & PREDICTIONS ENGINE (BY DOC)
-  // ==========================================
-    // ==========================================
+      // ==========================================
   // DYNAMIC CLINICAL INSIGHTS & PREDICTIONS ENGINE (BY DOC)
   // ==========================================
   function generateDynamicClinicalInsights() {
@@ -2436,7 +2433,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const conditions = state.conditions || [];
     const docs = state.labDocuments || [];
 
-    // Helper matcher by regex
+    // If health vault is at zero-state (wiped / empty), return zero insights
+    if (biomarkers.length === 0 && wearables.length === 0 && docs.length === 0 && conditions.length === 0) {
+      return [];
+    }
+
+    // Helper matcher by regex across biomarkers
     const findLatest = (pattern) => {
       const matches = biomarkers.filter(b => {
         const str = ((b.biomarker_code || '') + ' ' + (b.biomarker_name || '')).toLowerCase();
@@ -2444,6 +2446,19 @@ document.addEventListener('DOMContentLoaded', () => {
       }).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
       return matches.length > 0 ? matches[0] : null;
     };
+
+    // Helper matcher across documents
+    const findDoc = (pattern) => {
+      return docs.find(d => {
+        const str = ((d.document_title || '') + ' ' + (d.document_type || '') + ' ' + (d.ai_interpretation_summary || '')).toLowerCase();
+        return pattern.test(str);
+      });
+    };
+
+    const docMuscle = findDoc(/tennis|muscolar|gemello/i) || conditions.find(c => /tennis|gastrocnemius|gemello/i.test(c.title));
+    const docThyroid = findDoc(/tiroide|tiroid|thyroid|spongiform/i) || conditions.find(c => /tiroide|thyroid|nodulo/i.test(c.title));
+    const docPentacam = findDoc(/pentacam|pachymet|corneal/i) || findLatest(/oct.*os|macular/i);
+    const docHistology = findDoc(/istolog|histolog|carcinoma|bcc/i) || conditions.find(c => /bcc|carcinoma/i.test(c.title));
 
     const psaRatio = findLatest(/psa.*ratio|ratio.*psa|free.*total.*psa/i);
     const psaTot = findLatest(/total.*psa|psa.*totale|\bpsa\b/i);
@@ -2453,98 +2468,109 @@ document.addEventListener('DOMContentLoaded', () => {
     const hdl = findLatest(/hdl/i);
 
     // 1. UNSTRUCTURED RECORD INSIGHT: Musculoskeletal / Ultrasound ("Tennis Leg")
-    insights.push({
-      id: 'ins-muscle-us',
-      category: "Sports Traumatology & Ultrasound",
-      badge: 'Resolved / Remodeled',
-      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-      icon: 'activity',
-      title: 'Medial Gastrocnemius Tear (Tennis Leg) Ultrasound Recovery',
-      summary: `Ultrasound (*Villa Montallegro, Dr. Bacigalupo*) recorded a distal myotendinous junction tear (**22 mm CC x 16 mm LL**, ~50% muscle width) with a 1-2 mm hematoma fluid layer. Deep twin veins remained patent without thrombosis.`,
-      recommendation: 'Maintain progressive calf eccentric loading and Achilles tendon stiffness drills. Progressive return to high-impact sprinting and running load verified with current VO2 Max (53.7).',
-      evidence: `Exam: Ecotomografia Muscolare • Tear: 22x16 mm • Fluid Layer: 1-2 mm • Status: Resolved`,
-      prompt: 'Doc, review my left calf gastrocnemius tear ultrasound findings and verify training load management.'
-    });
+    if (docMuscle) {
+      insights.push({
+        id: 'ins-muscle-us',
+        category: "Sports Traumatology & Ultrasound",
+        badge: 'Resolved / Remodeled',
+        badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+        icon: 'activity',
+        title: 'Medial Gastrocnemius Tear (Tennis Leg) Ultrasound Recovery',
+        summary: `Ultrasound (*Villa Montallegro, Dr. Bacigalupo*) recorded a distal myotendinous junction tear (**22 mm CC x 16 mm LL**, ~50% muscle width) with a 1-2 mm hematoma fluid layer. Deep twin veins remained patent without thrombosis.`,
+        recommendation: 'Maintain progressive calf eccentric loading and Achilles tendon stiffness drills. Progressive return to high-impact sprinting and running load verified with current VO2 Max (53.7).',
+        evidence: `Exam: Ecotomografia Muscolare • Tear: 22x16 mm • Fluid Layer: 1-2 mm • Status: Resolved`,
+        prompt: 'Doc, review my left calf gastrocnemius tear ultrasound findings and verify training load management.'
+      });
+    }
 
     // 2. UNSTRUCTURED RECORD INSIGHT: Thyroid Ultrasound (Spongiform Nodule)
-    insights.push({
-      id: 'ins-thyroid-us',
-      category: "Endocrinology & Thyroid Ultrasound",
-      badge: 'Benign Surveillance (EU-TIRADS 2)',
-      badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
-      icon: 'zap',
-      title: 'Left Lobe Thyroid Spongiform Nodule (4x3 mm)',
-      summary: `Thyroid ultrasound (*Villa Montallegro, Dr. Buscaglia*) demonstrated normal gland dimensions (AP 14mm dx, 15mm sn) and Doppler vascularity. Identified a tiny **4x3 mm hypoechoic spongiform nodule** in the lower third of the left lobe.`,
-      recommendation: 'Spongiform nodules have a > 98% benign probability (EU-TIRADS 2). Recommend routine repeat ultrasound in 18–24 months alongside morning Free T3, Free T4, and Anti-TPO antibodies.',
-      evidence: `Nodule: 4x3 mm Left Lobe • Morphology: Spongiform (EU-TIRADS 2) • TSH: 3.96 µIU/mL`,
-      prompt: 'Doc, provide clinical guidance on my 4x3 mm spongiform thyroid nodule and correlated TSH.'
-    });
+    if (docThyroid) {
+      insights.push({
+        id: 'ins-thyroid-us',
+        category: "Endocrinology & Thyroid Ultrasound",
+        badge: 'Benign Surveillance (EU-TIRADS 2)',
+        badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
+        icon: 'zap',
+        title: 'Left Lobe Thyroid Spongiform Nodule (4x3 mm)',
+        summary: `Thyroid ultrasound (*Villa Montallegro, Dr. Buscaglia*) demonstrated normal gland dimensions (AP 14mm dx, 15mm sn) and Doppler vascularity. Identified a tiny **4x3 mm hypoechoic spongiform nodule** in the lower third of the left lobe.`,
+        recommendation: 'Spongiform nodules have a > 98% benign probability (EU-TIRADS 2). Recommend routine repeat ultrasound in 18–24 months alongside morning Free T3, Free T4, and Anti-TPO antibodies.',
+        evidence: `Nodule: 4x3 mm Left Lobe • Morphology: Spongiform (EU-TIRADS 2) • TSH: 3.96 µIU/mL`,
+        prompt: 'Doc, provide clinical guidance on my 4x3 mm spongiform thyroid nodule and correlated TSH.'
+      });
+    }
 
     // 3. UNSTRUCTURED RECORD INSIGHT: Oculus Pentacam Corneal Tomography & Macular OCT
-    insights.push({
-      id: 'ins-pentacam',
-      category: "Ophthalmology & Anterior Segment",
-      badge: 'Anatomically Robust',
-      badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
-      icon: 'eye',
-      title: 'Bilateral Pentacam Corneal Pachymetry & Macular Integrity',
-      summary: `3D Oculus Pentacam tomography confirmed robust central corneal thickness (**557 µm OD / 554 µm OS** at apex; thinnest 549/543 µm). Anterior chambers symmetric (**2.75 / 2.73 mm**) with wide open angles (27.1°). Macular OCT normalized to **272 µm OS** (subfoveal fluid resolved).`,
-      recommendation: 'Continue daily xanthophyll photoprotection (Lutein 20mg, Zeaxanthin 4mg, Astaxanthin 6mg, EPA/DHA > 1.5g/day) and annual SD-OCT retinal monitoring.',
-      evidence: `Pachy Apex: 557 µm OD / 554 µm OS • Macular CST: 272 µm OS / 268 µm OD`,
-      prompt: 'Doc, review my corneal Pentacam pachymetry and macular OCT recovery status.'
-    });
+    if (docPentacam) {
+      insights.push({
+        id: 'ins-pentacam',
+        category: "Ophthalmology & Anterior Segment",
+        badge: 'Anatomically Robust',
+        badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
+        icon: 'eye',
+        title: 'Bilateral Pentacam Corneal Pachymetry & Macular Integrity',
+        summary: `3D Oculus Pentacam tomography confirmed robust central corneal thickness (**557 µm OD / 554 µm OS** at apex; thinnest 549/543 µm). Anterior chambers symmetric (**2.75 / 2.73 mm**) with wide open angles (27.1°). Macular OCT normalized to **272 µm OS** (subfoveal fluid resolved).`,
+        recommendation: 'Continue daily xanthophyll photoprotection (Lutein 20mg, Zeaxanthin 4mg, Astaxanthin 6mg, EPA/DHA > 1.5g/day) and annual SD-OCT retinal monitoring.',
+        evidence: `Pachy Apex: 557 µm OD / 554 µm OS • Macular CST: 272 µm OS / 268 µm OD`,
+        prompt: 'Doc, review my corneal Pentacam pachymetry and macular OCT recovery status.'
+      });
+    }
 
     // 4. UNSTRUCTURED RECORD INSIGHT: Surgical Histology (BCC Excision)
-    insights.push({
-      id: 'ins-histology',
-      category: "Dermatology & Surgical Pathology",
-      badge: 'Curatively Excised / Disease-Free',
-      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-      icon: 'shield-check',
-      title: 'Suprascapular Nodular BCC Radical Excision (Clean Margins)',
-      summary: `Histology (*Villa Montallegro, Dr. Cabiddu / Dr. Maietta, 27/09/2026*) confirmed nodular basal cell carcinoma in upper reticular dermis (Clark Level III) with completely clear resection margins (**distance > 1 mm**).`,
-      recommendation: 'Complete anatomical cure achieved. Apply topical silicone sheets for scar remodeling and maintain annual digital full-body dermatoscopy for secondary lesion surveillance.',
-      evidence: `Histology: BCC Solido-Nodulare • Level: III • Margins: Indenni (> 1 mm)`,
-      prompt: 'Doc, review my suprascapular histology report and confirm scar management.'
-    });
+    if (docHistology) {
+      insights.push({
+        id: 'ins-histology',
+        category: "Dermatology & Surgical Pathology",
+        badge: 'Curatively Excised / Disease-Free',
+        badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+        icon: 'shield-check',
+        title: 'Suprascapular Nodular BCC Radical Excision (Clean Margins)',
+        summary: `Histology (*Villa Montallegro, Dr. Cabiddu / Dr. Maietta, 27/09/2026*) confirmed nodular basal cell carcinoma in upper reticular dermis (Clark Level III) with completely clear resection margins (**distance > 1 mm**).`,
+        recommendation: 'Complete anatomical cure achieved. Apply topical silicone sheets for scar remodeling and maintain annual digital full-body dermatoscopy for secondary lesion surveillance.',
+        evidence: `Histology: BCC Solido-Nodulare • Level: III • Margins: Indenni (> 1 mm)`,
+        prompt: 'Doc, review my suprascapular histology report and confirm scar management.'
+      });
+    }
 
     // 5. STRUCTURED LAB INSIGHT: Urology & Free / Total PSA Ratio
-    const ratioVal = psaRatio ? psaRatio.value : '38';
-    const totVal = psaTot ? psaTot.value : '1.38';
-    insights.push({
-      id: 'ins-psa',
-      category: "Men's Health & Urology",
-      badge: 'Optimal / Benign Reassurance',
-      badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
-      icon: 'shield-check',
-      title: 'Free / Total PSA Ratio (38%) & Prostate Health',
-      summary: `Total PSA is **${totVal} ng/mL** (safely below age cutoff < 2.5 ng/mL) and Free/Total Ratio is **${ratioVal}%**. A ratio >= 25% provides strong statistical reassurance of benign prostatic tissue.`,
-      recommendation: 'Maintain annual routine urological blood surveillance. Refrain from vigorous cycling for 48 hours prior to future draws.',
-      evidence: `Total PSA: ${totVal} ng/mL • Free/Total Ratio: ${ratioVal}% • Tested: 2026-07-02`,
-      prompt: 'Doc, review my Free/Total PSA ratio and confirm long-term urological surveillance intervals.'
-    });
+    if (psaRatio || psaTot) {
+      const ratioVal = psaRatio ? psaRatio.value : '38';
+      const totVal = psaTot ? psaTot.value : '1.38';
+      insights.push({
+        id: 'ins-psa',
+        category: "Men's Health & Urology",
+        badge: 'Optimal / Benign Reassurance',
+        badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
+        icon: 'shield-check',
+        title: 'Free / Total PSA Ratio (38%) & Prostate Health',
+        summary: `Total PSA is **${totVal} ng/mL** (safely below age cutoff < 2.5 ng/mL) and Free/Total Ratio is **${ratioVal}%**. A ratio >= 25% provides strong statistical reassurance of benign prostatic tissue.`,
+        recommendation: 'Maintain annual routine urological blood surveillance. Refrain from vigorous cycling for 48 hours prior to future draws.',
+        evidence: `Total PSA: ${totVal} ng/mL • Free/Total Ratio: ${ratioVal}% • Tested: 2026-07-02`,
+        prompt: 'Doc, review my Free/Total PSA ratio and confirm long-term urological surveillance intervals.'
+      });
+    }
 
     // 6. STRUCTURED LAB INSIGHT: Cardiovascular Longevity & ApoB
-    const ldlVal = ldl ? ldl.value : '111';
-    const tgVal = tg ? tg.value : '63';
-    const hdlVal = hdl ? hdl.value : '72';
-    const ratio = (parseFloat(tgVal) / parseFloat(hdlVal)).toFixed(2);
-    insights.push({
-      id: 'ins-cardio',
-      category: "Cardiovascular Longevity",
-      badge: 'Longevity Target',
-      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-      icon: 'heart-pulse',
-      title: 'ApoB Particle Direct Target (< 60 mg/dL)',
-      summary: `Triglyceride/HDL ratio is **${ratio}** (indicating optimal insulin sensitivity). However, LDL-C at **${ldlVal} mg/dL** corresponds to an estimated ApoB of ~85 mg/dL, above your longevity goal of < 60 mg/dL.`,
-      recommendation: 'Order a direct ApoB assay and one-time Lp(a) to evaluate actual circulating atherogenic particle count and eliminate vascular endothelial plaque retention.',
-      evidence: `LDL-C: ${ldlVal} mg/dL • HDL: ${hdlVal} mg/dL • TG/HDL: ${ratio}`,
-      prompt: 'Doc, what clinical protocol do you recommend to bridge my LDL-C to an ApoB below 60 mg/dL?'
-    });
+    if (ldl || tg || hdl) {
+      const ldlVal = ldl ? ldl.value : '111';
+      const tgVal = tg ? tg.value : '63';
+      const hdlVal = hdl ? hdl.value : '72';
+      const ratio = (parseFloat(tgVal) / parseFloat(hdlVal)).toFixed(2);
+      insights.push({
+        id: 'ins-cardio',
+        category: "Cardiovascular Longevity",
+        badge: 'Longevity Target',
+        badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+        icon: 'heart-pulse',
+        title: 'ApoB Particle Direct Target (< 60 mg/dL)',
+        summary: `Triglyceride/HDL ratio is **${ratio}** (indicating optimal insulin sensitivity). However, LDL-C at **${ldlVal} mg/dL** corresponds to an estimated ApoB of ~85 mg/dL, above your longevity goal of < 60 mg/dL.`,
+        recommendation: 'Order a direct ApoB assay and one-time Lp(a) to evaluate actual circulating atherogenic particle count and eliminate vascular endothelial plaque retention.',
+        evidence: `LDL-C: ${ldlVal} mg/dL • HDL: ${hdlVal} mg/dL • TG/HDL: ${ratio}`,
+        prompt: 'Doc, what clinical protocol do you recommend to bridge my LDL-C to an ApoB below 60 mg/dL?'
+      });
+    }
 
     return insights;
   }
-
 
   function renderOverviewInsights() {
     const container = document.getElementById('overviewInsightsList');
