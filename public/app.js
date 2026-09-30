@@ -2155,10 +2155,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function ensureLabDocumentsSynchronized() {
-    if (!state.labDocuments || state.labDocuments.length === 0) {
-      state.labDocuments = JSON.parse(JSON.stringify(DEFAULT_MULTIMODAL_DOCUMENTS));
-      saveUserData();
-    }
+    // If empty, strictly keep empty. Never auto-reseed.
   }
 
   
@@ -2564,8 +2561,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const conditions = state.conditions || [];
     const docs = state.labDocuments || [];
 
-    // If health vault is at zero-state (wiped / empty), return zero insights
-    if (biomarkers.length === 0 && wearables.length === 0 && docs.length === 0 && conditions.length === 0) {
+    // If health vault is at zero-state (wiped / empty), strictly return zero insights
+    if ((!biomarkers || biomarkers.length === 0) && (!docs || docs.length === 0) && (!wearables || wearables.length === 0) && (!conditions || conditions.length === 0)) {
       return [];
     }
 
