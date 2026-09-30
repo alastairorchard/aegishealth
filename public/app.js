@@ -1539,9 +1539,23 @@ document.addEventListener('DOMContentLoaded', () => {
             addedCount++;
           });
 
+          // Create and archive document record for the Apple Health XML export
+          state.labDocuments.unshift({
+            id: 'doc-xml-' + Date.now(),
+            user_id: state.currentUser?.id || 'demo-user',
+            document_title: `Apple Health Telemetry Export (${file.name})`,
+            document_type: 'wearables',
+            lab_provider: 'Apple Watch Ultra 4 & Health App',
+            test_date: new Date().toISOString().split('T')[0],
+            file_name: file.name,
+            file_size_bytes: file.size,
+            mime_type: 'application/xml',
+            ai_interpretation_summary: `Archived ${addedCount} daily physiological metrics (VO2 Max, Resting HR, HRV, Energy, Sleep) extracted from Apple Health XML export.`
+          });
+
           await saveUserData();
           renderAll();
-          alert(`Success! Extracted and aggregated ${rawSamplesFound} Apple Watch Ultra 4 telemetry samples (VO2 Max, Resting HR, HRV, Energy) into ${addedCount} daily health metrics.`);
+          alert(`Success! Extracted and archived ${rawSamplesFound} Apple Watch Ultra 4 telemetry samples (${addedCount} daily metrics) into your Document Vault and Trends.`);
           return;
         } else {
           alert('Could not detect Apple Watch telemetry records in this slice. Try loading aegis_daily_vitals.json for instant complete import.');
@@ -1602,9 +1616,23 @@ document.addEventListener('DOMContentLoaded', () => {
             addedCount++;
           });
 
+          // Create and archive document record for the Apple Health JSON vitals dataset
+          state.labDocuments.unshift({
+            id: 'doc-json-' + Date.now(),
+            user_id: state.currentUser?.id || 'demo-user',
+            document_title: `Apple Health Vitals Dataset (${file.name})`,
+            document_type: 'wearables',
+            lab_provider: 'Apple Watch Ultra 4 Telemetry Export',
+            test_date: new Date().toISOString().split('T')[0],
+            file_name: file.name,
+            file_size_bytes: file.size,
+            mime_type: 'application/json',
+            ai_interpretation_summary: `Archived ${addedCount} daily physiological metrics (VO2 Max, Resting HR, HRV, Active Energy, Sleep) from Apple Health JSON dataset.`
+          });
+
           await saveUserData();
           renderAll();
-          alert(`Success! Ingested and aggregated ${totalParsed} raw entries into ${addedCount} daily Apple Watch metrics!`);
+          alert(`Success! Ingested and archived ${totalParsed} raw entries (${addedCount} daily metrics) into your Document Vault and Trends!`);
           return;
         } else {
           alert('JSON file does not contain health telemetry array records.');
@@ -2912,9 +2940,24 @@ Please consider ordering the following targeted follow-up panel on the patient's
           // Take the latest 400 daily metrics to fit cleanly into active state
           const recentData = data.slice(-400);
           state.wearableMetrics = recentData;
+
+          // Archive document record in Stored Documents Vault
+          state.labDocuments.unshift({
+            id: 'doc-vitals-auto-' + Date.now(),
+            user_id: state.currentUser?.id || 'demo-user',
+            document_title: 'Apple Watch Ultra 4 Longitudinal Vitals Dataset',
+            document_type: 'wearables',
+            lab_provider: 'Apple Watch Ultra 4 & Health App',
+            test_date: new Date().toISOString().split('T')[0],
+            file_name: 'aegis_daily_vitals.json',
+            file_size_bytes: 2800000,
+            mime_type: 'application/json',
+            ai_interpretation_summary: `Ingested and archived ${recentData.length} daily Apple Watch Ultra 4 telemetry streams (VO2 Max 53.7, Resting HR, HRV SDNN, Sleep).`
+          });
+
           await saveUserData();
           renderAll();
-          alert(`Success! Loaded ${recentData.length} verified daily Apple Watch Ultra 4 records into your health vault.`);
+          alert(`Success! Loaded ${recentData.length} verified daily Apple Watch Ultra 4 records into your Document Vault & Trends.`);
         }
       } catch (err) {
         alert('Error loading dataset: ' + err.message);
