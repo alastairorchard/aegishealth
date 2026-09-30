@@ -1650,45 +1650,47 @@ ${state.wearableMetrics.length > 0 ? state.wearableMetrics.slice(-15).map(w => `
 [Patient Consultation Request]:
 ${val}`;
 
-      const geminiKey = localStorage.getItem('aegis_gemini_key') || localStorage.getItem('gemini_api_key');
       let finalReply = '';
+      const endpoint = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat' : '/api/doc/chat');
 
-      if (geminiKey) {
-        // Direct Google Gemini API Execution
-        try {
-          finalReply = await queryGeminiDirect(dossierPrompt, geminiKey);
-        } catch (geminiErr) {
-          console.error('Direct Gemini error:', geminiErr);
-          finalReply = `⚠️ **Google Gemini API Error:** ${geminiErr.message}\n\nPlease check your Gemini API key in the **Devices & Cloud** tab.`;
+      // 1. PRIMARY PATH: Real OpenClaw Doc Agent Backend (with long-term memory & tools)
+      try {
+        console.log('[Doc] Querying OpenClaw Doc Agent via HTTPS:', endpoint);
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: val,
+            userId: state.currentUser?.id || 'demo-user-alastair',
+            clientContext: {
+              profile: state.currentUser,
+              biomarkers: state.biomarkers,
+              conditions: state.conditions,
+              wearables: state.wearableMetrics
+            }
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data?.reply) {
+          finalReply = data.reply;
+        } else {
+          throw new Error(data?.message || `Server returned HTTP ${res.status}`);
         }
-      } else {
-        // Try Backend Endpoint
-        const endpoint = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat' : '/api/doc/chat');
-        try {
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message: val,
-              userId: state.currentUser?.id || 'demo-user-alastair',
-              clientContext: {
-                profile: state.currentUser,
-                biomarkers: state.biomarkers,
-                conditions: state.conditions,
-                wearables: state.wearableMetrics
-              }
-            })
-          });
-
-          const data = await res.json();
-          if (res.ok && data?.reply) {
-            finalReply = data.reply;
-          } else {
-            throw new Error(data?.message || `Server returned HTTP ${res.status}`);
+      } catch (backendErr) {
+        console.warn('Backend OpenClaw query failed, checking direct fallback:', backendErr);
+        
+        // 2. SECONDARY PATH: Direct Gemini API (if key is set)
+        const geminiKey = localStorage.getItem('aegis_gemini_key');
+        if (geminiKey && geminiKey.startsWith('AIzaSy')) {
+          try {
+            finalReply = await queryGeminiDirect(dossierPrompt, geminiKey);
+          } catch (geminiErr) {
+            console.error('Direct Gemini error:', geminiErr);
+            finalReply = `⚠️ **Doc Agent Connection Notice:**\n\n1. **OpenClaw Backend:** Could not reach \`${endpoint}\` (${backendErr.message}).\n2. **Direct Gemini API:** ${geminiErr.message}.\n\n*To resolve:* Ensure you are connected to Tailscale on this device to access \`https://ubuntu.tail88a4c9.ts.net:3443\`.`;
           }
-        } catch (backendErr) {
-          console.error('Backend endpoint error:', backendErr);
-          finalReply = `🩺 **Doc Agent Connection Required:**\n\nYou are accessing AegisHealth from an external device outside the local OpenClaw host.\n\nTo enable live Doc consultations from any browser worldwide, please **enter your Google Gemini API Key** in the **Devices & Cloud** tab (or set your HTTPS endpoint to \`https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat\`).`;
+        } else {
+          finalReply = `⚠️ **Could not connect to OpenClaw Doc Agent:**\n\n- **Target Server:** \`${endpoint}\`\n- **Error:** ${backendErr.message}\n\n*To fix:* Ensure this device is connected to your **Tailscale network** so it can communicate securely with our OpenClaw host (\`ubuntu.tail88a4c9.ts.net\`).`;
         }
       }
 
