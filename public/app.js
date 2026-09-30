@@ -474,9 +474,14 @@ document.addEventListener('DOMContentLoaded', () => {
   ];
 
   
+    // ==========================================
+  // UNIFIED REAL-TIME CLOUD & LOCAL SYNCHRONIZATION (VIA SUPABASE)
   // ==========================================
-  // UNIFIED REAL-TIME CLOUD & LOCAL SYNCHRONIZATION
-  // ==========================================
+  function getVaultRecordId() {
+    const email = state.currentUser?.email || 'alastairorchard@icloud.com';
+    return 'aegis_vault_' + email.toLowerCase().replace(/[^a-zA-Z0-9_]/g, '_');
+  }
+
   async function loadUserData() {
     if (!state.currentUser) return;
     const userEmail = state.currentUser.email || 'alastairorchard@icloud.com';
@@ -496,7 +501,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // 1. Read local storage cache
+    // 1. Read local cache first
     const saved = localStorage.getItem(localKey);
     if (saved) {
       try {
@@ -512,20 +517,25 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. Query Supabase Cloud Database & Merge
+    // 2. Query Supabase Cloud Database (using verified events table sync)
     if (state.supabase) {
       try {
+        const vaultId = getVaultRecordId();
         const { data, error } = await state.supabase
-          .from('aegis_user_vaults')
-          .select('vault_payload, updated_at')
-          .eq('user_email', userEmail)
+          .from('events')
+          .select('description, date')
+          .eq('id', vaultId)
           .maybeSingle();
 
-        if (!error && data && data.vault_payload) {
-          const cloud = data.vault_payload;
-          mergeCloudWithLocal(cloud);
-          const lastSyncEl = document.getElementById('lastSyncTime');
-          if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
+        if (!error && data && data.description) {
+          try {
+            const cloudVault = JSON.parse(data.description);
+            mergeCloudWithLocal(cloudVault);
+            const lastSyncEl = document.getElementById('lastSyncTime');
+            if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
+          } catch (pe) {
+            console.warn('Cloud payload parse error:', pe);
+          }
         }
       } catch (err) {
         console.warn('Supabase cloud fetch error:', err);
@@ -596,7 +606,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const userKey = btoa(userEmail);
     const localKey = `aegis_data_${userKey}`;
 
-    // Bound wearable metrics to prevent storage quota overflow
+    // Bound wearable metrics to latest 400 points
     if (state.wearableMetrics && state.wearableMetrics.length > 500) {
       const seen = new Set();
       const pruned = [];
@@ -624,30 +634,37 @@ document.addEventListener('DOMContentLoaded', () => {
       updated_at: new Date().toISOString()
     };
 
-    // 1. Always save locally
+    // 1. Save locally
     try {
       localStorage.setItem(localKey, JSON.stringify(bundle));
       localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle));
     } catch (e) {
-      console.warn('Storage quota compression:', e);
+      console.warn('Storage quota notice:', e);
     }
 
     // 2. ALWAYS sync with Supabase Cloud
     if (state.supabase) {
       try {
+        const vaultId = getVaultRecordId();
+        const payload = {
+          id: vaultId,
+          user_id: state.currentUser.id || 'usr_alastair',
+          name: 'AegisHealth Clinical Vault',
+          category: 'aegis_health_vault',
+          description: JSON.stringify(bundle),
+          date: new Date().toISOString(),
+          score: 10
+        };
+
         const { error } = await state.supabase
-          .from('aegis_user_vaults')
-          .upsert([{
-            user_email: userEmail,
-            vault_payload: bundle,
-            updated_at: new Date().toISOString()
-          }], { onConflict: 'user_email' });
+          .from('events')
+          .upsert([payload], { onConflict: 'id' });
 
         if (!error) {
           const lastSyncEl = document.getElementById('lastSyncTime');
           if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
         } else {
-          console.warn('Supabase upsert warning:', error.message);
+          console.warn('Supabase cloud save notice:', error.message);
         }
       } catch (err) {
         console.warn('Cloud save error:', err);
@@ -655,28 +672,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-
   function setupRealtimeCloudListener() {
     if (!state.supabase || !state.currentUser) return;
     try {
+      const vaultId = getVaultRecordId();
       state.supabase
-        .channel('aegis_cloud_sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'aegis_user_vaults', filter: `user_email=eq.${state.currentUser.email}` }, async (payload) => {
-          if (payload.new && payload.new.vault_payload) {
-            const cloud = payload.new.vault_payload;
-            state.biomarkers = cloud.biomarkers || state.biomarkers;
-            state.wearableMetrics = cloud.wearableMetrics || state.wearableMetrics;
-            state.labDocuments = cloud.labDocuments || state.labDocuments;
-            state.conditions = cloud.conditions || state.conditions;
-            state.insights = cloud.insights || state.insights;
-            state.messages = cloud.messages || state.messages;
-            state.reports = cloud.reports || state.reports;
-            renderAll();
+        .channel('aegis_vault_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `id=eq.${vaultId}` }, async (payload) => {
+          if (payload.new && payload.new.description) {
+            try {
+              const cloud = JSON.parse(payload.new.description);
+              mergeCloudWithLocal(cloud);
+              renderAll();
+            } catch(e) {}
           }
         })
         .subscribe();
     } catch(e) {}
   }
+
 
   function initDocGreeting() {
     if (state.messages.length === 0 && state.currentUser) {
@@ -1980,9 +1994,9 @@ document.addEventListener('DOMContentLoaded', () => {
       state.labDocuments.unshift(newDoc);
       verifiedBiomarkers.forEach(b => state.biomarkers.unshift(b));
 
-      // Auto-Track in Conditions Hub if applicable
-      if (autoTrack && (narrative || docClass !== 'blood_panel')) {
-        const conditionTitle = state.pendingLabReview.documentTitle.replace(/Photographed Clinical Record|Manual Clinical Entry/gi, '').trim() || `${docClass.replace('_', ' ').toUpperCase()} Finding`;
+      // Only track in Conditions Hub if user explicitly selected ultrasound/histology with a real diagnosis
+      if (autoTrack && narrative && (docClass === 'ultrasound' || docClass === 'histology')) {
+        const conditionTitle = state.pendingLabReview.documentTitle.replace(/Photographed Clinical Record|Manual Clinical Entry|Document:/gi, '').trim() || `${docClass.replace('_', ' ').toUpperCase()} Finding`;
         state.conditions.unshift({
           id: 'cond-' + Date.now(),
           user_id: state.currentUser?.id || 'demo-user',
@@ -1990,8 +2004,8 @@ document.addEventListener('DOMContentLoaded', () => {
           condition_type: docClass === 'ultrasound' ? 'acute' : 'chronic',
           status: 'managing',
           diagnosis_date: dateStr,
-          clinical_summary: narrative || `Diagnosed via ${docClass} at ${provider}.`,
-          primary_treatment_plan: `Routine surveillance and clinical follow-up.`
+          clinical_summary: narrative,
+          primary_treatment_plan: `Clinical follow-up and surveillance.`
         });
       }
 
