@@ -107,44 +107,95 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (state.authMode === 'register') {
-      const confirmPass = authConfirmPassInput.value;
-      if (confirmPass && userKey !== confirmPass) {
-        showAuthError('Passwords do not match. Please re-enter.');
-        return;
-      }
+    if (state.supabase) {
+      if (state.authMode === 'register') {
+        const confirmPass = authConfirmPassInput.value;
+        if (confirmPass && userKey !== confirmPass) {
+          showAuthError('Passwords do not match. Please re-enter.');
+          return;
+        }
 
+        authSubmitText.textContent = 'Creating Account...';
+        try {
+          const { data: signUpData, error: signUpErr } = await state.supabase.auth.signUp({
+            email: email,
+            password: userKey,
+            options: { data: { fullName: email.split('@')[0].replace(/[._]/g, ' ') } }
+          });
+
+          if (signUpErr && !signUpErr.message.toLowerCase().includes('already registered')) {
+            showAuthError(signUpErr.message);
+            authSubmitText.textContent = 'Create Account & Begin Onboarding';
+            return;
+          }
+
+          // Direct sign-in immediately without email confirmation blocking
+          const { data: signInData, error: signInErr } = await state.supabase.auth.signInWithPassword({
+            email: email,
+            password: userKey
+          });
+
+          const user = signInData?.user || signUpData?.user;
+          state.currentUser = {
+            id: user.id,
+            email: user.email,
+            fullName: user.user_metadata?.fullName || email.split('@')[0],
+            onboardingCompleted: true
+          };
+
+          saveSession();
+          await loadUserData();
+          setupRealtimeCloudListener();
+          unlockApp();
+          return;
+        } catch (err) {
+          showAuthError(err.message || 'Authentication error');
+          authSubmitText.textContent = 'Create Account & Begin Onboarding';
+          return;
+        }
+      } else {
+        // Supabase Login
+        authSubmitText.textContent = 'Signing In...';
+        try {
+          const { data, error } = await state.supabase.auth.signInWithPassword({
+            email: email,
+            password: userKey
+          });
+
+          if (error) {
+            showAuthError(error.message);
+            authSubmitText.textContent = 'Sign In to Health Vault';
+            return;
+          }
+
+          state.currentUser = {
+            id: data.user.id,
+            email: data.user.email,
+            fullName: data.user.user_metadata?.fullName || email.split('@')[0],
+            onboardingCompleted: true
+          };
+
+          saveSession();
+          await loadUserData();
+          setupRealtimeCloudListener();
+          unlockApp();
+          return;
+        } catch (err) {
+          showAuthError(err.message || 'Login error');
+          authSubmitText.textContent = 'Sign In to Health Vault';
+          return;
+        }
+      }
+    } else {
+      // Local fallback
       state.currentUser = {
         id: 'usr-' + Date.now(),
         email: email,
         fullName: email.split('@')[0].replace(/[._]/g, ' '),
-        onboardingCompleted: false
+        onboardingCompleted: true
       };
       saveSession();
-
-      authGateModal.classList.add('hidden');
-      openOnboardingWizard();
-
-    } else {
-      const savedProfile = localStorage.getItem('aegis_profile_' + btoa(email));
-      if (savedProfile) {
-        try {
-          state.currentUser = JSON.parse(savedProfile);
-        } catch (e) {
-          state.currentUser = { id: 'usr-' + Date.now(), email, fullName: email.split('@')[0], onboardingCompleted: true };
-        }
-      } else {
-        state.currentUser = {
-          id: 'usr-' + Date.now(),
-          email: email,
-          fullName: email.split('@')[0].replace(/[._]/g, ' '),
-          onboardingCompleted: true
-        };
-      }
-
-      saveSession();
       await loadUserData();
-      setupRealtimeCloudListener();
       unlockApp();
     }
   });
@@ -169,6 +220,29 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function checkSession() {
+    // 1. Check Supabase authenticated session first
+    if (state.supabase) {
+      try {
+        const { data: { session }, error } = await state.supabase.auth.getSession();
+        if (!error && session && session.user) {
+          state.currentUser = {
+            id: session.user.id,
+            email: session.user.email,
+            fullName: session.user.user_metadata?.fullName || session.user.email.split('@')[0],
+            onboardingCompleted: true
+          };
+          saveSession();
+          await loadUserData();
+          setupRealtimeCloudListener();
+          unlockApp();
+          return;
+        }
+      } catch (e) {
+        console.warn('Supabase session check notice:', e);
+      }
+    }
+
+    // 2. Fallback to local session if available
     const raw = localStorage.getItem('aegis_current_session');
     if (raw) {
       try {
@@ -183,6 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Session parse error:', e);
       }
     }
+
     lockApp();
   }
 
@@ -193,8 +268,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  btnSignOut.addEventListener('click', () => {
+  btnSignOut.addEventListener('click', async () => {
     if (confirm('Sign out of your AegisHealth vault?')) {
+      if (state.supabase) {
+        try { await state.supabase.auth.signOut(); } catch (e) {}
+      }
       localStorage.removeItem('aegis_current_session');
       state.currentUser = null;
       state.biomarkers = [];
