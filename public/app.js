@@ -2038,10 +2038,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (docs.length === 0) {
       grid.innerHTML = `
-        <div class="col-span-full p-6 text-center text-xs text-slate-400 border border-surface-border rounded-xl bg-surface-dark/30">
-          No documents found matching category "${activeDocVaultFilter}". Click above to upload or photograph reports.
+        <div class="col-span-full p-8 text-center text-xs text-slate-400 border border-surface-border rounded-2xl bg-[#070c1b]/60 space-y-2">
+          <div class="w-10 h-10 rounded-xl bg-surface-dark text-slate-400 flex items-center justify-center mx-auto mb-2">
+            <i data-lucide="archive" class="w-5 h-5 text-brand-400"></i>
+          </div>
+          <p class="text-white font-bold text-sm">No clinical documents stored in vault yet</p>
+          <p class="text-slate-400 max-w-sm mx-auto">Snap a photo of your paper reports above or upload a PDF to archive documents and extract biomarkers.</p>
         </div>
       `;
+      if (window.lucide) window.lucide.createIcons();
       return;
     }
 
