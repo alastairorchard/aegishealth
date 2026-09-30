@@ -1663,7 +1663,7 @@ ${val}`;
         }
       } else {
         // Try Backend Endpoint
-        const endpoint = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'https://openclaw-cloud-us.tail88a4c9.ts.net/aegis/api/doc/chat' : '/api/doc/chat');
+        const endpoint = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat' : '/api/doc/chat');
         try {
           const res = await fetch(endpoint, {
             method: 'POST',
@@ -1688,7 +1688,7 @@ ${val}`;
           }
         } catch (backendErr) {
           console.error('Backend endpoint error:', backendErr);
-          finalReply = `🩺 **Doc Agent Connection Required:**\n\nYou are accessing AegisHealth from an external device outside the local OpenClaw host.\n\nTo enable live Doc consultations from any browser worldwide, please **enter your Google Gemini API Key** in the **Devices & Cloud** tab (or set your HTTPS endpoint to \`https://openclaw-cloud-us.tail88a4c9.ts.net/aegis/api/doc/chat\`).`;
+          finalReply = `🩺 **Doc Agent Connection Required:**\n\nYou are accessing AegisHealth from an external device outside the local OpenClaw host.\n\nTo enable live Doc consultations from any browser worldwide, please **enter your Google Gemini API Key** in the **Devices & Cloud** tab (or set your HTTPS endpoint to \`https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat\`).`;
         }
       }
 
@@ -2118,7 +2118,7 @@ ${val}`;
   const endpointInput = document.getElementById('docAgentEndpointInput');
   const btnSaveDocEndpoint = document.getElementById('btnSaveDocEndpoint');
   if (endpointInput) {
-    endpointInput.value = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'http://100.68.142.44:3000/api/doc/chat' : '/api/doc/chat');
+    endpointInput.value = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat' : '/api/doc/chat');
   }
   if (btnSaveDocEndpoint) {
     btnSaveDocEndpoint.addEventListener('click', () => {
