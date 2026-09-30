@@ -1969,7 +1969,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    container.innerHTML = state.insights.map(ins => {
+    container.innerHTML = state.insights.map((ins, idx) => {
       let icon = 'sparkles';
       let iconColor = 'text-brand-400 bg-brand-500/10';
       if (ins.insight_type === 'test_recommendation') {
@@ -1981,22 +1981,56 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       return `
-        <div class="bg-surface-dark/80 p-3.5 rounded-xl border border-surface-border/80 flex items-start gap-3">
-          <div class="p-2 rounded-lg ${iconColor} mt-0.5">
+        <div class="bg-surface-dark/80 p-3.5 rounded-xl border border-surface-border/80 flex items-start gap-3 hover:border-brand-500/30 transition-all">
+          <div class="p-2 rounded-lg ${iconColor} mt-0.5 shrink-0">
             <i data-lucide="${icon}" class="w-4 h-4"></i>
           </div>
-          <div class="flex-1 text-xs">
-            <div class="flex items-center justify-between mb-1">
+          <div class="flex-1 text-xs space-y-1.5">
+            <div class="flex items-center justify-between">
               <span class="font-bold text-white">${ins.title}</span>
               <span class="text-[10px] text-brand-400 font-mono">${(ins.confidence_score * 100).toFixed(0)}% Doc Confidence</span>
             </div>
             <p class="text-slate-300 leading-relaxed">${ins.summary}</p>
+            <div class="pt-2 border-t border-surface-border/50 flex items-center justify-between">
+              <span class="text-[10px] text-slate-500 font-medium">Evidence-based Longevity Analysis</span>
+              <button class="btn-ask-doc-insight px-3 py-1 bg-accent-cyan/10 hover:bg-accent-cyan/20 border border-accent-cyan/30 text-accent-cyan font-bold rounded-lg text-[11px] flex items-center gap-1.5 transition-all cursor-pointer" data-idx="${idx}">
+                <i data-lucide="stethoscope" class="w-3.5 h-3.5"></i> Ask Doc
+              </button>
+            </div>
           </div>
         </div>
       `;
     }).join('');
 
     if (window.lucide) window.lucide.createIcons();
+
+    document.querySelectorAll('.btn-ask-doc-insight').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.getAttribute('data-idx'), 10);
+        const ins = state.insights[idx];
+        if (!ins) return;
+
+        switchTab('doc');
+
+        state.messages.push({
+          sender_role: 'user',
+          content: `Doc, please deep-dive into this clinical insight: **${ins.title}**\n\n> ${ins.summary}\n\nWhat are the specific longevity implications and next steps?`,
+          created_at: new Date().toISOString()
+        });
+        renderDocChatMessages();
+
+        const docReply = generateDocClinicalConsultation(ins.title + ' ' + ins.summary);
+        state.messages.push({
+          sender_role: 'doc_agent',
+          content: docReply,
+          created_at: new Date().toISOString()
+        });
+
+        await saveUserData();
+        renderDocChatMessages();
+      });
+    });
   }
 
   function renderOverviewConditions() {
