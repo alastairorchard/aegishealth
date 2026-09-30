@@ -1643,58 +1643,75 @@ document.addEventListener('DOMContentLoaded', () => {
     return results;
   }
 
-  function openLabReviewModal(pendingData) {
-    state.pendingLabReview = pendingData;
-    reviewDocTitle.textContent = `Document: ${pendingData.fileName} • ${pendingData.extractedItems.length} verified biomarker(s) detected`;
-    reviewRawText.textContent = pendingData.rawText;
+    function openLabReviewModal(data) {
+    state.pendingLabReview = data;
+    const reviewDocTitle = document.getElementById('reviewDocTitle');
+    const reviewRawText = document.getElementById('reviewRawText');
+    const labReviewModal = document.getElementById('labReviewModal');
+    const revDocClass = document.getElementById('revDocClass');
+    const revLabProvider = document.getElementById('revLabProvider');
+    const revTestDate = document.getElementById('revTestDate');
+    const revNarrativeSummary = document.getElementById('revNarrativeSummary');
+
+    if (reviewDocTitle) {
+      reviewDocTitle.textContent = `Document: ${data.fileName} (${data.extractedItems?.length || 0} parameter(s) detected)`;
+    }
+    if (reviewRawText) {
+      reviewRawText.textContent = data.rawText || '(No digital text layer found)';
+    }
+
+    // Auto-detect Document Classification
+    const rawLower = (data.rawText || '' + data.fileName || '').toLowerCase();
+    let detectedClass = 'blood_panel';
+    if (rawLower.includes('ecotomografia') || rawLower.includes('ecograf') || rawLower.includes('ultrasound') || rawLower.includes('rmn') || rawLower.includes('risonanza')) {
+      detectedClass = 'ultrasound';
+    } else if (rawLower.includes('pentacam') || rawLower.includes('pachymet') || rawLower.includes('oct') || rawLower.includes('macular')) {
+      detectedClass = 'ophthalmology';
+    } else if (rawLower.includes('istologic') || rawLower.includes('carcinoma') || rawLower.includes('biops') || rawLower.includes('losanga')) {
+      detectedClass = 'histology';
+    } else if (rawLower.includes('visita') || rawLower.includes('consulenza') || rawLower.includes('consultation')) {
+      detectedClass = 'consultation';
+    }
+
+    if (revDocClass) revDocClass.value = detectedClass;
+    if (revLabProvider) revLabProvider.value = rawLower.includes('montallegro') ? 'Villa Montallegro, Genova' : (data.labProvider || 'Laboratorio di Analisi');
+    if (revTestDate) revTestDate.value = data.extractedDate || new Date().toISOString().split('T')[0];
+    
+    if (revNarrativeSummary) {
+      revNarrativeSummary.value = data.narrativeSummary || data.rawText?.substring(0, 300) || '';
+    }
 
     renderLabReviewRows();
-    labReviewModal.classList.remove('hidden');
-    if (window.lucide) window.lucide.createIcons();
+    if (labReviewModal) labReviewModal.classList.remove('hidden');
   }
 
   function renderLabReviewRows() {
-    if (!state.pendingLabReview) return;
-    const items = state.pendingLabReview.extractedItems;
+    const labReviewTableBody = document.getElementById('labReviewTableBody');
+    if (!labReviewTableBody || !state.pendingLabReview) return;
 
-    if (items.length === 0) {
-      labReviewTableBody.innerHTML = `
-        <tr>
-          <td colspan="5" class="p-6 text-center text-slate-400 text-xs">
-            No digital text found in this scan. Click <strong>+ Add Marker</strong> above to enter results from this sheet.
-          </td>
-        </tr>
-      `;
-      return;
-    }
-
-    labReviewTableBody.innerHTML = items.map((item, idx) => `
-      <tr data-index="${idx}">
-        <td class="py-2.5 px-3">
-          <input type="text" class="rev-name w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-white" value="${item.name}">
+    labReviewTableBody.innerHTML = (state.pendingLabReview.extractedItems || []).map((item, index) => `
+      <tr class="hover:bg-surface-dark/40" data-index="${index}">
+        <td class="py-2 px-3">
+          <input type="text" class="rev-name w-full bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-white text-xs font-semibold focus:border-brand-400" value="${item.name}">
         </td>
-        <td class="py-2.5 px-3 w-28">
-          <input type="number" step="any" class="rev-val w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs font-bold text-brand-400" value="${item.value}">
+        <td class="py-2 px-3">
+          <input type="number" step="any" class="rev-val w-24 bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-white text-xs font-bold focus:border-brand-400" value="${item.value}">
         </td>
-        <td class="py-2.5 px-3 w-28">
-          <input type="text" class="rev-unit w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-slate-300 font-mono" value="${item.unit}">
+        <td class="py-2 px-3">
+          <input type="text" class="rev-unit w-16 bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-slate-300 text-xs focus:border-brand-400" value="${item.unit}">
         </td>
-        <td class="py-2.5 px-3 w-36">
-          <select class="rev-cat w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-slate-300">
-            <option value="lipids_cardio" ${item.category === 'lipids_cardio' ? 'selected' : ''}>Lipids & Cardio</option>
-            <option value="hormones" ${item.category === 'hormones' ? 'selected' : ''}>Hormones</option>
-            <option value="endocrine" ${item.category === 'endocrine' ? 'selected' : ''}>Endocrine / Thyroid</option>
-            <option value="hematology" ${item.category === 'hematology' ? 'selected' : ''}>Hematology & Iron</option>
-            <option value="metabolic" ${item.category === 'metabolic' ? 'selected' : ''}>Metabolic & CMP</option>
-            <option value="inflammation" ${item.category === 'inflammation' ? 'selected' : ''}>Inflammation</option>
-            <option value="ophthalmology" ${item.category === 'ophthalmology' ? 'selected' : ''}>Ophthalmology</option>
-            <option value="micronutrients" ${item.category === 'micronutrients' ? 'selected' : ''}>Micronutrients</option>
-            <option value="cardiovascular" ${item.category === 'cardiovascular' ? 'selected' : ''}>Cardiovascular / ECG</option>
-            <option value="general" ${item.category === 'general' ? 'selected' : ''}>General</option>
+        <td class="py-2 px-3">
+          <select class="rev-cat bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-slate-300 text-xs">
+            <option value="lipids_cardio" ${item.category === 'lipids_cardio' ? 'selected' : ''}>Lipids / Cardiovascular</option>
+            <option value="hormones" ${item.category === 'hormones' ? 'selected' : ''}>Hormones / Endocrine</option>
+            <option value="ophthalmology" ${item.category === 'ophthalmology' ? 'selected' : ''}>Ophthalmology / Retina</option>
+            <option value="musculoskeletal" ${item.category === 'musculoskeletal' ? 'selected' : ''}>Musculoskeletal / Trauma</option>
+            <option value="metabolic" ${item.category === 'metabolic' ? 'selected' : ''}>Metabolic / Glycemic</option>
+            <option value="general" ${item.category === 'general' ? 'selected' : ''}>General Health</option>
           </select>
         </td>
-        <td class="py-2.5 px-2 text-center w-12">
-          <button type="button" class="btn-del-rev-row text-slate-500 hover:text-rose-400 p-1 cursor-pointer" data-index="${idx}">
+        <td class="py-2 px-2 text-center">
+          <button type="button" class="btn-del-rev-row text-rose-400 hover:text-rose-300 p-1 cursor-pointer" data-index="${index}">
             <i data-lucide="trash" class="w-4 h-4"></i>
           </button>
         </td>
@@ -1712,43 +1729,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  if (btnAddRowToReview) {
-    btnAddRowToReview.addEventListener('click', () => {
-      if (!state.pendingLabReview) return;
-      state.pendingLabReview.extractedItems.push({
-        code: 'CUSTOM_' + Date.now(),
-        name: 'New Biomarker',
-        value: '',
-        unit: 'mg/dL',
-        category: 'general'
-      });
-      renderLabReviewRows();
-    });
-  }
-
-  if (btnCloseLabReview) btnCloseLabReview.addEventListener('click', () => labReviewModal.classList.add('hidden'));
-  if (btnCancelReview) btnCancelReview.addEventListener('click', () => labReviewModal.classList.add('hidden'));
-
-  // Confirm and Save Verified Biomarkers
+  // Confirm and Save Verified Multi-Modal Document
   if (btnConfirmLabSave) {
     btnConfirmLabSave.addEventListener('click', async () => {
       if (!state.pendingLabReview) return;
 
-      const dateStr = state.pendingLabReview.extractedDate || new Date().toISOString().split('T')[0];
-      const rows = labReviewTableBody.querySelectorAll('tr[data-index]');
+      const dateStr = document.getElementById('revTestDate')?.value || state.pendingLabReview.extractedDate || new Date().toISOString().split('T')[0];
+      const docClass = document.getElementById('revDocClass')?.value || 'blood_panel';
+      const provider = document.getElementById('revLabProvider')?.value || 'Clinical Facility';
+      const narrative = document.getElementById('revNarrativeSummary')?.value.trim() || '';
+      const autoTrack = document.getElementById('revAutoTrackCondition')?.checked;
+
+      const rows = document.getElementById('labReviewTableBody')?.querySelectorAll('tr[data-index]') || [];
       const verifiedBiomarkers = [];
 
       rows.forEach((tr, i) => {
-        const name = tr.querySelector('.rev-name').value.trim();
-        const val = parseFloat(tr.querySelector('.rev-val').value);
-        const unit = tr.querySelector('.rev-unit').value.trim();
-        const cat = tr.querySelector('.rev-cat').value;
-        const code = (state.pendingLabReview.extractedItems[i]?.code || name.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase());
+        const name = tr.querySelector('.rev-name')?.value.trim();
+        const val = parseFloat(tr.querySelector('.rev-val')?.value);
+        const unit = tr.querySelector('.rev-unit')?.value.trim();
+        const cat = tr.querySelector('.rev-cat')?.value;
+        const code = (state.pendingLabReview.extractedItems?.[i]?.code || name.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase());
 
         if (name && !isNaN(val)) {
           verifiedBiomarkers.push({
             id: 'bm-' + Date.now() + '-' + i,
-            user_id: state.currentUser.id,
+            user_id: state.currentUser?.id || 'demo-user',
             document_id: 'doc-' + Date.now(),
             biomarker_code: code,
             biomarker_name: name,
@@ -1757,46 +1762,56 @@ document.addEventListener('DOMContentLoaded', () => {
             unit: unit || 'unit',
             clinical_flag: 'optimal',
             test_date: dateStr,
-            notes: `Extracted & verified from ${state.pendingLabReview.fileName}`
+            notes: `${provider} • ${docClass}`
           });
         }
       });
 
-      if (verifiedBiomarkers.length === 0) {
-        alert('Please enter at least one valid biomarker name and numeric value.');
-        return;
-      }
-
       const newDoc = {
         id: 'doc-' + Date.now(),
-        user_id: state.currentUser.id,
-        document_title: state.pendingLabReview.documentTitle,
-        lab_provider: 'Verified Pathology Record',
+        user_id: state.currentUser?.id || 'demo-user',
+        document_title: state.pendingLabReview.documentTitle || `${docClass.toUpperCase()} (${dateStr})`,
+        document_type: docClass,
+        lab_provider: provider,
         test_date: dateStr,
-        file_url: '#',
         file_name: state.pendingLabReview.fileName,
-        file_size_bytes: state.pendingLabReview.fileSizeBytes,
-        mime_type: state.pendingLabReview.mimeType,
-        ai_interpretation_summary: `Parsed and verified ${verifiedBiomarkers.length} real biomarker(s): ${verifiedBiomarkers.map(b => b.biomarker_name).join(', ')}.`
+        file_size_bytes: state.pendingLabReview.fileSizeBytes || 250000,
+        mime_type: state.pendingLabReview.mimeType || 'application/pdf',
+        ai_interpretation_summary: narrative || `Archived ${docClass} from ${provider} with ${verifiedBiomarkers.length} verified metrics.`
       };
 
       state.labDocuments.unshift(newDoc);
       verifiedBiomarkers.forEach(b => state.biomarkers.unshift(b));
 
+      // Auto-Track in Conditions Hub if applicable
+      if (autoTrack && (narrative || docClass !== 'blood_panel')) {
+        const conditionTitle = state.pendingLabReview.documentTitle.replace(/Photographed Clinical Record|Manual Clinical Entry/gi, '').trim() || `${docClass.replace('_', ' ').toUpperCase()} Finding`;
+        state.conditions.unshift({
+          id: 'cond-' + Date.now(),
+          user_id: state.currentUser?.id || 'demo-user',
+          title: conditionTitle,
+          condition_type: docClass === 'ultrasound' ? 'acute' : 'chronic',
+          status: 'managing',
+          diagnosis_date: dateStr,
+          clinical_summary: narrative || `Diagnosed via ${docClass} at ${provider}.`,
+          primary_treatment_plan: `Routine surveillance and clinical follow-up.`
+        });
+      }
+
       state.messages.push({
         sender_role: 'doc_agent',
-        content: `I have ingested and verified ${verifiedBiomarkers.length} biomarkers from **${state.pendingLabReview.fileName}** (Date: ${dateStr}):\n${verifiedBiomarkers.map(b => `• **${b.biomarker_name}:** ${b.value} ${b.unit}`).join('\n')}\n\nYour trajectory charts and clinical indicators have been updated.`,
+        content: `I have ingested and archived **${newDoc.document_title}** (Provider: ${provider}, Date: ${dateStr}).\\n\\n**Clinical Findings:**\\n"${newDoc.ai_interpretation_summary}"\\n\\n${verifiedBiomarkers.length > 0 ? `Verified Metrics: ${verifiedBiomarkers.map(b => `${b.biomarker_name}: ${b.value} ${b.unit}`).join(', ')}` : ''}`,
         created_at: new Date().toISOString()
       });
 
       await saveUserData();
-      labReviewModal.classList.add('hidden');
+      const labReviewModal = document.getElementById('labReviewModal');
+      if (labReviewModal) labReviewModal.classList.add('hidden');
       renderAll();
-      alert(`Success! ${verifiedBiomarkers.length} verified biomarker(s) saved to your cloud health vault.`);
+      alert(`Success! "${newDoc.document_title}" saved and synced to your health vault.`);
     });
   }
 
-  
   function ensureLabDocumentsSynchronized() {
     if ((!state.labDocuments || state.labDocuments.length === 0) && state.biomarkers && state.biomarkers.length > 0) {
       // Group biomarkers by distinct test date and create document cards
