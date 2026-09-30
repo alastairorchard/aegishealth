@@ -1,5 +1,5 @@
 // ==============================================================================
-// AEGISHEALTH - PRECISION CLINICAL PARSER & ZERO-HALLUCINATION ENGINE
+// AEGISHEALTH - UNIFIED CROSS-DEVICE CLOUD VAULT & PRECISION CLINICAL ENGINE
 // ==============================================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
     charts: {}
   };
 
-  // Initialize Supabase Client if available
+  // Initialize Supabase Client
   if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
     try {
       state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  authForm.addEventListener('submit', (e) => {
+  authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     authErrorMsg.classList.add('hidden');
     const email = authEmailInput.value.trim();
@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       saveSession();
-      loadUserData();
+      await loadUserData();
       unlockApp();
     }
   });
@@ -162,13 +162,13 @@ document.addEventListener('DOMContentLoaded', () => {
     onboardingModal.classList.add('hidden');
   }
 
-  function checkSession() {
+  async function checkSession() {
     const raw = localStorage.getItem('aegis_current_session');
     if (raw) {
       try {
         state.currentUser = JSON.parse(raw);
         if (state.currentUser && state.currentUser.email) {
-          loadUserData();
+          await loadUserData();
           unlockApp();
           return;
         }
@@ -238,6 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveSession();
     initDocGreeting();
+    saveUserData();
     unlockApp();
   });
 
@@ -319,12 +320,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ----------------------------------------------------------------------------
-  // DATA PERSISTENCE
+  // UNIFIED CROSS-DEVICE DATA SYNC (SUPABASE CLOUD + LOCAL CACHE)
   // ----------------------------------------------------------------------------
-  function loadUserData() {
+  async function loadUserData() {
     if (!state.currentUser) return;
-    const key = `aegis_data_${btoa(state.currentUser.email)}`;
-    const saved = localStorage.getItem(key);
+    const userKey = btoa(state.currentUser.email);
+    const localKey = `aegis_data_${userKey}`;
+    
+    // 1. Read from local cache first for instant UI response
+    const saved = localStorage.getItem(localKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -337,25 +341,53 @@ document.addEventListener('DOMContentLoaded', () => {
         state.messages = parsed.messages || [];
         state.reports = parsed.reports || [];
       } catch (e) {
-        console.warn('Data parse error:', e);
+        console.warn('Local data parse error:', e);
       }
-    } else {
-      state.biomarkers = [];
-      state.wearableMetrics = [];
-      state.labDocuments = [];
-      state.conditions = [];
-      state.conditionTags = [];
-      state.insights = [];
-      state.messages = [];
-      state.reports = [];
+    }
+
+    // 2. Fetch latest unified Cloud Vault from Supabase (Cross-Device Sync)
+    if (state.supabase) {
+      try {
+        const { data, error } = await state.supabase
+          .from('aegis_user_vaults')
+          .select('vault_payload, updated_at')
+          .eq('user_email', state.currentUser.email)
+          .maybeSingle();
+
+        if (!error && data && data.vault_payload) {
+          const cloudVault = data.vault_payload;
+          state.biomarkers = cloudVault.biomarkers || state.biomarkers;
+          state.wearableMetrics = cloudVault.wearableMetrics || state.wearableMetrics;
+          state.labDocuments = cloudVault.labDocuments || state.labDocuments;
+          state.conditions = cloudVault.conditions || state.conditions;
+          state.conditionTags = cloudVault.conditionTags || state.conditionTags;
+          state.insights = cloudVault.insights || state.insights;
+          state.messages = cloudVault.messages || state.messages;
+          state.reports = cloudVault.reports || state.reports;
+
+          // Update local cache
+          localStorage.setItem(localKey, JSON.stringify(cloudVault));
+          const lastSyncEl = document.getElementById('lastSyncTime');
+          if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
+        }
+      } catch (err) {
+        console.warn('Supabase cloud fetch notice:', err);
+      }
+    }
+
+    if (state.messages.length === 0) {
       initDocGreeting();
     }
   }
 
-  function saveUserData() {
+  async function saveUserData() {
     if (!state.currentUser) return;
-    const key = `aegis_data_${btoa(state.currentUser.email)}`;
-    localStorage.setItem(key, JSON.stringify({
+    const userKey = btoa(state.currentUser.email);
+    const localKey = `aegis_data_${userKey}`;
+    
+    const bundle = {
+      user_email: state.currentUser.email,
+      user_profile: state.currentUser,
       biomarkers: state.biomarkers,
       wearableMetrics: state.wearableMetrics,
       labDocuments: state.labDocuments,
@@ -363,15 +395,41 @@ document.addEventListener('DOMContentLoaded', () => {
       conditionTags: state.conditionTags,
       insights: state.insights,
       messages: state.messages,
-      reports: state.reports
-    }));
+      reports: state.reports,
+      updated_at: new Date().toISOString()
+    };
+
+    // Save locally
+    localStorage.setItem(localKey, JSON.stringify(bundle));
+
+    // Save to Supabase Cloud for cross-device persistence
+    if (state.supabase) {
+      try {
+        state.supabase
+          .from('aegis_user_vaults')
+          .upsert([{
+            user_email: state.currentUser.email,
+            vault_payload: bundle,
+            updated_at: new Date().toISOString()
+          }], { onConflict: 'user_email' })
+          .then(({ error }) => {
+            if (!error) {
+              const lastSyncEl = document.getElementById('lastSyncTime');
+              if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
+            }
+          })
+          .catch(() => {});
+      } catch (err) {
+        console.warn('Cloud sync error:', err);
+      }
+    }
   }
 
   function initDocGreeting() {
     if (state.messages.length === 0 && state.currentUser) {
       state.messages.push({
         sender_role: 'doc_agent',
-        content: `Hello ${state.currentUser.fullName}! I am **Doc**, your clinical medical consultant (OpenClaw \`google/gemini-3.7-flash\`).\n\nYour clinical vault is initialized. Upload your blood test or checkup PDF, or import your Apple Health JSON bundle, and I will index your exact physiological parameters without making up any baseline numbers.\n\nWhat records would you like to review?`,
+        content: `Hello ${state.currentUser.fullName}! I am **Doc**, your personal clinical consultant (OpenClaw \`google/gemini-3.7-flash\`).\n\nYour clinical vault is unified across all your devices. Whenever you upload a blood test, thyroid panel, or Apple Health stream on any machine, your entire clinical timeline is preserved.\n\nWhat clinical records would you like to review?`,
         created_at: new Date().toISOString()
       });
     }
@@ -1081,7 +1139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Clinical Knowledge Dictionary (Multilingual English + Italian + International)
+  // Clinical Knowledge Dictionary
   const CLINICAL_DICTIONARY = [
     { patterns: [/colesterolo\s*ldl/i, /\bldl-c\b/i, /\bldl\s*colesterolo\b/i, /\bldl\b/i], code: 'LDL_CHOLESTEROL', name: 'LDL Cholesterol', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
     { patterns: [/colesterolo\s*hdl/i, /\bhdl-c\b/i, /\bhdl\s*colesterolo\b/i, /\bhdl\b/i], code: 'HDL_CHOLESTEROL', name: 'HDL Cholesterol', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
@@ -1481,7 +1539,7 @@ document.addEventListener('DOMContentLoaded', () => {
           if (hasHRV) {
             reply = `Your continuous Apple Watch telemetry indicates stable autonomic recovery.`;
           } else {
-            reply = `No Apple Watch telemetry has been received yet. You can connect it in the **Devices & API** tab using the Webhook URL.`;
+            reply = `No Apple Watch telemetry has been received yet. You can connect it in the **Devices & Cloud** tab using the Webhook URL.`;
           }
         } else {
           if (catalog.length === 0) {
@@ -1784,7 +1842,7 @@ document.addEventListener('DOMContentLoaded', () => {
         : `• No lab panels uploaded yet. Upload blood tests in Lab Vault.`,
       wearable_correlations: state.wearableMetrics.length > 0
         ? `Continuous Apple Watch telemetry integrated.`
-        : `• Apple Watch Ultra 4 sync pending. Configure webhook in Devices & API tab.`,
+        : `• Apple Watch Ultra 4 sync pending. Configure webhook in Devices & Cloud tab.`,
       risk_stratification: hasData 
         ? `Assessment based strictly on ${state.biomarkers.length} verified laboratory records.`
         : `Risk stratification pending primary biomarker ingestion.`,
@@ -1801,8 +1859,73 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnGenerateNewReport) btnGenerateNewReport.addEventListener('click', generateDiagnosticReport);
 
   // ----------------------------------------------------------------------------
-  // DATA PURGE / RESET (WIPE HALLUCINATED OR STALE DATA)
+  // VAULT BACKUP EXPORT & IMPORT (MULTI-DEVICE RESTORE)
   // ----------------------------------------------------------------------------
+  const btnExportVaultBackup = document.getElementById('btnExportVaultBackup');
+  const btnImportVaultBackup = document.getElementById('btnImportVaultBackup');
+  const backupFileInput = document.getElementById('backupFileInput');
+
+  if (btnExportVaultBackup) {
+    btnExportVaultBackup.addEventListener('click', () => {
+      const bundle = {
+        app: 'AegisHealth',
+        version: '1.0.0',
+        exported_at: new Date().toISOString(),
+        user_email: state.currentUser.email,
+        user_profile: state.currentUser,
+        biomarkers: state.biomarkers,
+        wearableMetrics: state.wearableMetrics,
+        labDocuments: state.labDocuments,
+        conditions: state.conditions,
+        conditionTags: state.conditionTags,
+        insights: state.insights,
+        messages: state.messages,
+        reports: state.reports
+      };
+
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `aegis_health_vault_backup_${state.currentUser.email.split('@')[0]}_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  if (btnImportVaultBackup && backupFileInput) {
+    btnImportVaultBackup.addEventListener('click', () => backupFileInput.click());
+    backupFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data && (data.biomarkers || data.wearableMetrics)) {
+          state.biomarkers = data.biomarkers || state.biomarkers;
+          state.wearableMetrics = data.wearableMetrics || state.wearableMetrics;
+          state.labDocuments = data.labDocuments || state.labDocuments;
+          state.conditions = data.conditions || state.conditions;
+          state.conditionTags = data.conditionTags || state.conditionTags;
+          state.insights = data.insights || state.insights;
+          state.messages = data.messages || state.messages;
+          state.reports = data.reports || state.reports;
+
+          saveUserData();
+          renderAll();
+          alert('Health vault backup successfully restored on this device!');
+        } else {
+          alert('Invalid backup file format.');
+        }
+      } catch (err) {
+        alert('Error reading backup file: ' + err.message);
+      }
+      backupFileInput.value = '';
+    });
+  }
+
+  // Clear all data
   const btnClearData = document.getElementById('btnClearData');
   if (btnClearData) {
     btnClearData.addEventListener('click', () => {
