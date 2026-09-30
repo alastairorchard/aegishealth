@@ -1473,10 +1473,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+    // Layout-aware PDF, Image OCR, XML & JSON Ingester
   async function processUploadedDocument(file) {
     const fn = file.name.toLowerCase();
 
-    // 1. APPLE HEALTH XML EXPORT (export.xml / .xml / .zip)
+    // 1. APPLE HEALTH XML EXPORT
     if (fn.endsWith('.xml') || fn.endsWith('.zip')) {
       try {
         const typeMap = {
@@ -1491,8 +1492,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const dailyBuckets = {};
         const totalSize = file.size;
         
-        // Target slices based on Apple Health layout:
-        // 77% (VO2Max & Resting Heart Rate), 98% (HRV SDNN & Sleep), 50% (Active Energy), 0% (Body Mass)
         const slices = totalSize > 100 * 1024 * 1024
           ? [
               { pos: Math.floor(totalSize * 0.765), len: 45 * 1024 * 1024 },
@@ -1508,7 +1507,6 @@ document.addEventListener('DOMContentLoaded', () => {
           const sliceBlob = file.slice(s.pos, s.pos + s.len);
           const chunkText = await sliceBlob.text();
 
-          // Non-self-closing <Record ... > tag regex
           const recordRegex = /<Record\s+([^>]+)>/gi;
           let recMatch;
 
@@ -1579,7 +1577,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. APPLE HEALTH JSON BUNDLE (aegis_ingested_vitals.json / Health Auto Export)
+    // 2. APPLE HEALTH JSON BUNDLE
     if (fn.endsWith('.json')) {
       try {
         const text = await file.text();
@@ -1629,7 +1627,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
           await saveUserData();
           renderAll();
-          alert(`Successfully imported and aggregated ${totalParsed} raw telemetry entries into ${addedCount} daily health metrics!`);
+          alert(`Success! Ingested and aggregated ${totalParsed} raw entries into ${addedCount} daily Apple Watch metrics!`);
           return;
         } else {
           alert('JSON file does not contain health telemetry array records.');
@@ -1642,40 +1640,54 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 3. Apple Watch ECG CSV Upload
-    if (fn.endsWith('.csv') && (fn.includes('ecg') || fn.includes('electrocardio'))) {
-      try {
-        const csvText = await file.text();
-        const lines = csvText.split(/[\r\n]+/);
-        let classification = 'Sinus Rhythm';
-        let recordedDate = new Date().toISOString().split('T')[0];
-        let sampleRate = 512;
+    // 3. IMAGE FILES (JPG, PNG, WEBP) - OCR EXTRACTION
+    if (file.type.startsWith('image/') || fn.endsWith('.jpg') || fn.endsWith('.jpeg') || fn.endsWith('.png') || fn.endsWith('.webp')) {
+      let imageLines = [];
+      let detectedDate = new Date().toISOString().split('T')[0];
 
-        lines.forEach(l => {
-          if (l.startsWith('Classification,')) classification = l.split(',')[1]?.trim() || classification;
-          if (l.startsWith('Recorded Date,')) recordedDate = l.split(',')[1]?.trim()?.substring(0, 10) || recordedDate;
-          if (l.startsWith('Sample Rate,')) sampleRate = parseInt(l.split(',')[1], 10) || sampleRate;
-        });
-
-        openLabReviewModal({
-          documentTitle: 'Apple Watch ECG Recording',
-          fileName: file.name,
-          fileSizeBytes: file.size,
-          mimeType: 'text/csv',
-          rawText: csvText.substring(0, 500) + '...',
-          extractedDate: recordedDate,
-          extractedItems: [
-            { code: 'ECG_RHYTHM', name: `ECG Rhythm (${classification})`, value: 1, unit: 'event', category: 'cardiovascular' },
-            { code: 'ECG_SAMPLE_RATE', name: 'ECG Sample Rate', value: sampleRate, unit: 'Hz', category: 'cardiovascular' }
-          ]
-        });
-        return;
-      } catch (err) {
-        console.warn('ECG CSV parse error:', err);
+      if (window.Tesseract) {
+        try {
+          const base64 = await readFileAsBase64(file);
+          const ocrResult = await window.Tesseract.recognize(base64, 'ita+eng');
+          const rawOcrText = ocrResult?.data?.text || '';
+          imageLines = rawOcrText.split(/[\r\n]+/);
+        } catch (e) {
+          console.warn('Image OCR error:', e);
+        }
       }
+
+      for (const l of imageLines) {
+        const dateMatch = l.match(/(?:data\s*referto|data\s*esame|date|prelievo|del)[:\s]*([0-3]?[0-9][/-][0-1]?[0-9][/-][1-2][0-9]{3})/i);
+        if (dateMatch && dateMatch[1]) {
+          const parts = dateMatch[1].split(/[/-]/);
+          if (parts.length === 3) {
+            detectedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            break;
+          }
+        }
+      }
+
+      let extractedItems = parseTabularClinicalLines(imageLines);
+      if (extractedItems.length === 0) {
+        // Provide editable template rows if OCR didn't find dictionary markers
+        extractedItems = [
+          { code: 'PARAM_1', name: 'Clinical Parameter / Marker', value: '', unit: '', category: 'general' }
+        ];
+      }
+
+      openLabReviewModal({
+        documentTitle: file.name.replace(/\.[^/.]+$/, ''),
+        fileName: file.name,
+        fileSizeBytes: file.size,
+        mimeType: file.type || 'image/jpeg',
+        rawText: imageLines.join('\n') || `Photographed Clinical Record (${file.name})`,
+        extractedDate: detectedDate,
+        extractedItems: extractedItems
+      });
+      return;
     }
 
-    // 4. Clinical PDF Lab Report Text Layout Extraction
+    // 4. CLINICAL PDF LAB REPORT EXTRACTION
     let lines = [];
     let detectedDate = new Date().toISOString().split('T')[0];
 
@@ -1714,13 +1726,6 @@ document.addEventListener('DOMContentLoaded', () => {
           console.warn('PDF layout parsing error:', err);
         }
       }
-    } else {
-      try {
-        const text = await file.text();
-        lines = text.split(/[\r\n]+/);
-      } catch (err) {
-        console.warn('Text file read error:', err);
-      }
     }
 
     for (const l of lines) {
@@ -1743,7 +1748,9 @@ document.addEventListener('DOMContentLoaded', () => {
       mimeType: file.type || 'application/pdf',
       rawText: lines.join('\n') || '(No digital text layer found.)',
       extractedDate: detectedDate,
-      extractedItems: extractedItems
+      extractedItems: extractedItems.length > 0 ? extractedItems : [
+        { code: 'PARAM_1', name: 'Clinical Parameter / Marker', value: '', unit: '', category: 'general' }
+      ]
     });
   }
 
