@@ -332,6 +332,84 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   
   // Initial Multi-Modal Diagnostic Documents Baseline
+  
+  // Verified Longitudinal Clinical Biomarkers Baseline
+  const DEFAULT_CLINICAL_BIOMARKERS = [
+    // 2026-07-02 Montallegro Panel
+    { id: 'bm-01', user_id: 'alastairorchard@icloud.com', biomarker_code: 'PSA_RATIO', biomarker_name: 'Free / Total PSA Ratio', value: 38, unit: '%', test_date: '2026-07-02', category: 'hormones', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-02', user_id: 'alastairorchard@icloud.com', biomarker_code: 'PSA_FREE', biomarker_name: 'Free PSA', value: 0.52, unit: 'ng/mL', test_date: '2026-07-02', category: 'hormones', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-03', user_id: 'alastairorchard@icloud.com', biomarker_code: 'PSA_TOTAL', biomarker_name: 'Total PSA', value: 1.38, unit: 'ng/mL', test_date: '2026-07-02', category: 'hormones', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-04', user_id: 'alastairorchard@icloud.com', biomarker_code: 'TESTOSTERONE_TOTAL', biomarker_name: 'Total Testosterone', value: 6.6, unit: 'ng/mL', test_date: '2026-07-02', category: 'hormones', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-05', user_id: 'alastairorchard@icloud.com', biomarker_code: 'TOTAL_CHOLESTEROL', biomarker_name: 'Total Cholesterol', value: 196, unit: 'mg/dL', test_date: '2026-07-02', category: 'lipids_cardio', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-06', user_id: 'alastairorchard@icloud.com', biomarker_code: 'HDL_CHOLESTEROL', biomarker_name: 'HDL Cholesterol', value: 72, unit: 'mg/dL', test_date: '2026-07-02', category: 'lipids_cardio', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-07', user_id: 'alastairorchard@icloud.com', biomarker_code: 'TRIGLYCERIDES', biomarker_name: 'Triglycerides', value: 63, unit: 'mg/dL', test_date: '2026-07-02', category: 'lipids_cardio', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-08', user_id: 'alastairorchard@icloud.com', biomarker_code: 'LDL_CHOLESTEROL', biomarker_name: 'LDL Cholesterol', value: 111, unit: 'mg/dL', test_date: '2026-07-02', category: 'lipids_cardio', notes: 'Laboratorio Villa Montallegro' },
+
+    // 2025-06-12 Montallegro Panel
+    { id: 'bm-09', user_id: 'alastairorchard@icloud.com', biomarker_code: 'PSA_RATIO', biomarker_name: 'Free / Total PSA Ratio', value: 52, unit: '%', test_date: '2025-06-12', category: 'hormones', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-10', user_id: 'alastairorchard@icloud.com', biomarker_code: 'PSA_FREE', biomarker_name: 'Free PSA', value: 0.60, unit: 'ng/mL', test_date: '2025-06-12', category: 'hormones', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-11', user_id: 'alastairorchard@icloud.com', biomarker_code: 'PSA_TOTAL', biomarker_name: 'Total PSA', value: 1.16, unit: 'ng/mL', test_date: '2025-06-12', category: 'hormones', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-12', user_id: 'alastairorchard@icloud.com', biomarker_code: 'TOTAL_CHOLESTEROL', biomarker_name: 'Total Cholesterol', value: 211, unit: 'mg/dL', test_date: '2025-06-12', category: 'lipids_cardio', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-13', user_id: 'alastairorchard@icloud.com', biomarker_code: 'HDL_CHOLESTEROL', biomarker_name: 'HDL Cholesterol', value: 69, unit: 'mg/dL', test_date: '2025-06-12', category: 'lipids_cardio', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-14', user_id: 'alastairorchard@icloud.com', biomarker_code: 'TRIGLYCERIDES', biomarker_name: 'Triglycerides', value: 77, unit: 'mg/dL', test_date: '2025-06-12', category: 'lipids_cardio', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-15', user_id: 'alastairorchard@icloud.com', biomarker_code: 'LDL_CHOLESTEROL', biomarker_name: 'LDL Cholesterol', value: 127, unit: 'mg/dL', test_date: '2025-06-12', category: 'lipids_cardio', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-16', user_id: 'alastairorchard@icloud.com', biomarker_code: 'TSH', biomarker_name: 'TSH (Thyroid Stimulating Hormone)', value: 3.96, unit: 'µIU/mL', test_date: '2025-06-12', category: 'endocrine', notes: 'Laboratorio Villa Montallegro' },
+    { id: 'bm-17', user_id: 'alastairorchard@icloud.com', biomarker_code: 'TESTOSTERONE_TOTAL', biomarker_name: 'Total Testosterone', value: 3.65, unit: 'ng/mL', test_date: '2025-06-12', category: 'hormones', notes: 'Laboratorio Villa Montallegro' },
+
+    // Ophthalmology & Retinal OCT Metrics
+    { id: 'bm-18', user_id: 'alastairorchard@icloud.com', biomarker_code: 'OCT_CST_OS', biomarker_name: 'Central Macular Thickness (OS)', value: 272, unit: 'µm', test_date: '2026-04-10', category: 'ophthalmology', notes: 'Normalized from 298 µm (subfoveal fluid resolved)' },
+    { id: 'bm-19', user_id: 'alastairorchard@icloud.com', biomarker_code: 'OCT_CST_OD', biomarker_name: 'Central Macular Thickness (OD)', value: 268, unit: 'µm', test_date: '2026-04-10', category: 'ophthalmology', notes: 'Stable foveal architecture' },
+    { id: 'bm-20', user_id: 'alastairorchard@icloud.com', biomarker_code: 'PACHYMETRY_APEX_OD', biomarker_name: 'Corneal Pachymetry Apex (OD)', value: 557, unit: 'µm', test_date: '2025-06-06', category: 'ophthalmology', notes: 'Oculus Pentacam 3D' },
+    { id: 'bm-21', user_id: 'alastairorchard@icloud.com', biomarker_code: 'PACHYMETRY_APEX_OS', biomarker_name: 'Corneal Pachymetry Apex (OS)', value: 554, unit: 'µm', test_date: '2025-06-06', category: 'ophthalmology', notes: 'Oculus Pentacam 3D' }
+  ];
+
+  // Default Tracked Conditions Baseline
+  const DEFAULT_CONDITIONS = [
+    {
+      id: 'cond-bcc-01',
+      user_id: 'alastairorchard@icloud.com',
+      title: 'Suprascapular Nodular Basal Cell Carcinoma (BCC)',
+      condition_type: 'acute',
+      status: 'resolved',
+      diagnosis_date: '2026-09-27',
+      resolved_date: '2026-09-27',
+      clinical_summary: 'Excised at Villa Montallegro by Dr. Maietta (Histology: 27/09/2026). Clark Level III, margins completely clear (> 1 mm). Curatively cured. Annual digital dermatoscopy surveillance.',
+      primary_treatment_plan: 'Annual dermatoscopy, topical silicone scar remodeling, SPF 50+ mineral protection.'
+    },
+    {
+      id: 'cond-macula-02',
+      user_id: 'alastairorchard@icloud.com',
+      title: 'Left Eye (OS) Macular Foveal Micro-Edema',
+      condition_type: 'chronic',
+      status: 'resolved',
+      diagnosis_date: '2025-04-10',
+      resolved_date: '2026-04-10',
+      clinical_summary: 'Central macular thickness normalized from 298 µm down to 272 µm in 2026 (OD stable at 268 µm). Subfoveal fluid completely resolved.',
+      primary_treatment_plan: 'Daily xanthophyll carotenoids (Lutein 20mg, Zeaxanthin 4mg, Astaxanthin 6mg, DHA > 1.5g) & annual SD-OCT.'
+    },
+    {
+      id: 'cond-thyroid-03',
+      user_id: 'alastairorchard@icloud.com',
+      title: 'Left Thyroid Lobe Spongiform Nodule (4x3 mm)',
+      condition_type: 'chronic',
+      status: 'managing',
+      diagnosis_date: '2025-06-12',
+      clinical_summary: 'Thyroid ultrasound (Villa Montallegro, Dr. Buscaglia) identified single tiny 4x3 mm hypoechoic spongiform nodule (EU-TIRADS 2 benign appearance). TSH: 3.96 µIU/mL.',
+      primary_treatment_plan: 'Routine 18–24 month ultrasound follow-up; morning Free T3/T4/Anti-TPO antibodies.'
+    },
+    {
+      id: 'cond-tennis-04',
+      user_id: 'alastairorchard@icloud.com',
+      title: 'Left Medial Gastrocnemius Tear (Tennis Leg)',
+      condition_type: 'acute',
+      status: 'resolved',
+      diagnosis_date: '2025-02-03',
+      resolved_date: '2025-05-15',
+      clinical_summary: 'Musculoskeletal ultrasound (Villa Montallegro, Dr. Bacigalupo) documented a 22x16 mm distal myotendinous junction tear with 1-2 mm hematoma. Deep twin veins patent.',
+      primary_treatment_plan: 'Progressive eccentric loading, tendon remodeling, and running load management.'
+    }
+  ];
+
   const DEFAULT_MULTIMODAL_DOCUMENTS = [
     {
       id: 'doc-histology-001',
@@ -396,9 +474,19 @@ document.addEventListener('DOMContentLoaded', () => {
   ];
 
   async function loadUserData() {
+    // 1. Ensure Multi-Modal Documents are initialized
     if (!state.labDocuments || state.labDocuments.length === 0) {
       state.labDocuments = [...DEFAULT_MULTIMODAL_DOCUMENTS];
     }
+    // 2. Ensure Clinical Biomarkers are initialized
+    if (!state.biomarkers || state.biomarkers.length === 0) {
+      state.biomarkers = [...DEFAULT_CLINICAL_BIOMARKERS];
+    }
+    // 3. Ensure Conditions Hub is initialized
+    if (!state.conditions || state.conditions.length === 0) {
+      state.conditions = [...DEFAULT_CONDITIONS];
+    }
+
     if (!state.currentUser) return;
     const userKey = btoa(state.currentUser.email);
     const localKey = `aegis_data_${userKey}`;
@@ -420,6 +508,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Local data parse error:', e);
       }
     }
+
+    saveUserData(); // Ensure fully initialized state is persisted locally
 
     // Attempt cloud sync merge (without overwriting if cloud is empty)
     if (state.supabase) {
