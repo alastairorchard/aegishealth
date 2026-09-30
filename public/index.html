@@ -271,6 +271,31 @@
       </div>
     </header>
 
+    <!-- Mobile Scrollable Sub-Header Nav Bar (Visible on iPhone / Android / iPad) -->
+    <div class="flex lg:hidden items-center gap-2 overflow-x-auto scrollbar-none px-4 py-2.5 bg-[#070c1b] border-b border-surface-border sticky top-[57px] z-30 shadow-md">
+      <button data-tab="overview" class="tab-btn active px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 text-white bg-brand-500/20 border border-brand-500/40 transition-all">
+        <i data-lucide="activity" class="w-3.5 h-3.5 text-brand-400"></i> Overview
+      </button>
+      <button data-tab="trends" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 text-slate-400 hover:text-white bg-surface-dark border border-surface-border transition-all">
+        <i data-lucide="line-chart" class="w-3.5 h-3.5"></i> Trends
+      </button>
+      <button data-tab="conditions" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 text-slate-400 hover:text-white bg-surface-dark border border-surface-border transition-all">
+        <i data-lucide="heart-pulse" class="w-3.5 h-3.5"></i> Conditions
+      </button>
+      <button data-tab="labs" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 text-slate-400 hover:text-white bg-surface-dark border border-surface-border transition-all">
+        <i data-lucide="camera" class="w-3.5 h-3.5 text-[#00ffb9]"></i> Lab Vault
+      </button>
+      <button data-tab="doc" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 text-slate-400 hover:text-white bg-surface-dark border border-surface-border transition-all">
+        <i data-lucide="stethoscope" class="w-3.5 h-3.5 text-accent-cyan"></i> Doc AI
+      </button>
+      <button data-tab="reports" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 text-slate-400 hover:text-white bg-surface-dark border border-surface-border transition-all">
+        <i data-lucide="clipboard-check" class="w-3.5 h-3.5 text-amber-400"></i> Reports
+      </button>
+      <button data-tab="integrations" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 text-slate-400 hover:text-white bg-surface-dark border border-surface-border transition-all">
+        <i data-lucide="watch" class="w-3.5 h-3.5 text-accent-purple"></i> Devices
+      </button>
+    </div>
+
     <!-- App Main Content Area -->
     <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
 
