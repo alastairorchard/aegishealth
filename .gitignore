@@ -3,3 +3,6 @@ uploads/*
 !uploads/.gitkeep
 .env
 .DS_Store
+*.xml
+*.zip
+aegis_ingested_vitals.json

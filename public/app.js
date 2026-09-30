@@ -297,6 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
       else if (wt === 'sleep_deep_min') { friendlyName = 'Deep Sleep Duration'; unit = 'min'; }
       else if (wt === 'sleep_total_min') { friendlyName = 'Total Sleep Time'; unit = 'min'; }
       else if (wt === 'vo2_max') { friendlyName = 'Cardio Fitness (VO2 Max)'; unit = 'mL/kg/min'; }
+      else if (wt === 'active_energy_kcal') { friendlyName = 'Active Energy Burned'; unit = 'kcal'; }
 
       map.set(`WEARABLE_${wt.toUpperCase()}`, {
         code: `WEARABLE_${wt.toUpperCase()}`,
@@ -370,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.messages.length === 0 && state.currentUser) {
       state.messages.push({
         sender_role: 'doc_agent',
-        content: `Hello ${state.currentUser.fullName}! I am **Doc**, your clinical medical consultant (OpenClaw \`google/gemini-3.7-flash\`).\n\nYour clinical vault is completely empty and ready. Upload your blood test or checkup in the **Lab Vault** and I will extract the exact clinical parameters from the report for your verification.\n\nWhat clinical records would you like to review?`,
+        content: `Hello ${state.currentUser.fullName}! I am **Doc**, your clinical medical consultant (OpenClaw \`google/gemini-3.7-flash\`).\n\nYour clinical vault is initialized. Upload your blood test or checkup PDF, or import your Apple Health JSON bundle, and I will index your exact physiological parameters without making up any baseline numbers.\n\nWhat records would you like to review?`,
         created_at: new Date().toISOString()
       });
     }
@@ -938,12 +939,81 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Layout-aware PDF line reconstruction
+  // Layout-aware PDF & JSON Ingester
   async function processUploadedDocument(file) {
+    const fn = file.name.toLowerCase();
+
+    // 1. Direct JSON Vitals Bundle Upload (from Apple Health Export Script)
+    if (fn.endsWith('.json')) {
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (Array.isArray(data)) {
+          let addedCount = 0;
+          data.forEach(item => {
+            if (item.metric_type && item.value !== undefined) {
+              state.wearableMetrics.push({
+                id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+                user_id: state.currentUser.id,
+                metric_type: item.metric_type,
+                value: item.value,
+                unit: item.unit || 'unit',
+                device_source: item.device_source || 'Apple Watch Ultra 4',
+                recorded_at: item.recorded_at || new Date().toISOString()
+              });
+              addedCount++;
+            }
+          });
+          saveUserData();
+          renderAll();
+          alert(`Successfully imported ${addedCount} Apple Health telemetry records into your health vault!`);
+          return;
+        }
+      } catch (err) {
+        console.warn('JSON vitals import error:', err);
+      }
+    }
+
+    // 2. Direct Apple Watch ECG CSV Upload
+    if (fn.endsWith('.csv') && (fn.includes('ecg') || fn.includes('electrocardio'))) {
+      try {
+        const csvText = await file.text();
+        const lines = csvText.split(/[\r\n]+/);
+        let classification = 'Sinus Rhythm';
+        let recordedDate = new Date().toISOString().split('T')[0];
+        let device = 'Apple Watch';
+        let sampleRate = 512;
+
+        lines.forEach(l => {
+          if (l.startsWith('Classification,')) classification = l.split(',')[1]?.trim() || classification;
+          if (l.startsWith('Recorded Date,')) recordedDate = l.split(',')[1]?.trim()?.substring(0, 10) || recordedDate;
+          if (l.startsWith('Device,')) device = l.split(',')[1]?.trim() || device;
+          if (l.startsWith('Sample Rate,')) sampleRate = parseInt(l.split(',')[1], 10) || sampleRate;
+        });
+
+        openLabReviewModal({
+          documentTitle: 'Apple Watch ECG Recording',
+          fileName: file.name,
+          fileSizeBytes: file.size,
+          mimeType: 'text/csv',
+          rawText: csvText.substring(0, 500) + '...',
+          extractedDate: recordedDate,
+          extractedItems: [
+            { code: 'ECG_RHYTHM', name: `ECG Rhythm (${classification})`, value: 1, unit: 'event', category: 'cardiovascular' },
+            { code: 'ECG_SAMPLE_RATE', name: 'ECG Sample Rate', value: sampleRate, unit: 'Hz', category: 'cardiovascular' }
+          ]
+        });
+        return;
+      } catch (err) {
+        console.warn('ECG CSV parse error:', err);
+      }
+    }
+
+    // 3. Clinical PDF Lab Report Text Layout Extraction
     let lines = [];
     let detectedDate = new Date().toISOString().split('T')[0];
 
-    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    if (file.type === 'application/pdf' || fn.endsWith('.pdf')) {
       if (window.pdfjsLib) {
         try {
           const arrayBuffer = await file.arrayBuffer();
@@ -954,7 +1024,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const page = await pdf.getPage(pageNum);
             const textContent = await page.getTextContent();
             
-            // Group text fragments by visual vertical Y-coordinate (within 4px tolerance)
             const rows = {};
             for (const item of textContent.items) {
               if (!item.str || !item.str.trim()) continue;
@@ -967,7 +1036,6 @@ document.addEventListener('DOMContentLoaded', () => {
               rows[bucket].push({ str: item.str, x: item.transform[4] });
             }
 
-            // Sort top-to-bottom and left-to-right
             const sortedY = Object.keys(rows).sort((a, b) => parseFloat(b) - parseFloat(a));
             const pageLines = sortedY.map(y => {
               const itemsInRow = rows[y].sort((a, b) => a.x - b.x);
@@ -989,7 +1057,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Try detecting test date from header (e.g. data referto 12/04/2025 or 2025-04-12)
     for (const l of lines) {
       const dateMatch = l.match(/(?:data\s*referto|data\s*esame|date|prelievo)[:\s]*([0-3]?[0-9][/-][0-1]?[0-9][/-][1-2][0-9]{3})/i);
       if (dateMatch && dateMatch[1]) {
@@ -1001,7 +1068,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // Parse structured clinical lines
     const extractedItems = parseTabularClinicalLines(lines);
 
     openLabReviewModal({
@@ -1017,7 +1083,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Clinical Knowledge Dictionary (Multilingual English + Italian + International)
   const CLINICAL_DICTIONARY = [
-    // Lipids & Cardio (Colesterolo LDL, HDL, Totale, Trigliceridi, ApoB, Lp(a))
     { patterns: [/colesterolo\s*ldl/i, /\bldl-c\b/i, /\bldl\s*colesterolo\b/i, /\bldl\b/i], code: 'LDL_CHOLESTEROL', name: 'LDL Cholesterol', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
     { patterns: [/colesterolo\s*hdl/i, /\bhdl-c\b/i, /\bhdl\s*colesterolo\b/i, /\bhdl\b/i], code: 'HDL_CHOLESTEROL', name: 'HDL Cholesterol', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
     { patterns: [/^colesterolo\b/i, /\bcolesterolo\s*totale\b/i, /\btotal\s*cholesterol\b/i], code: 'TOTAL_CHOLESTEROL', name: 'Total Cholesterol', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
@@ -1025,7 +1090,6 @@ document.addEventListener('DOMContentLoaded', () => {
     { patterns: [/apolipoproteina\s*b/i, /\bapob\b/i], code: 'APOB', name: 'Apolipoprotein B', defaultUnit: 'mg/dL', category: 'lipids_cardio' },
     { patterns: [/lipoproteina\s*\(a\)/i, /\blp\(a\)\b/i], code: 'LPA', name: 'Lipoprotein(a)', defaultUnit: 'nmol/L', category: 'lipids_cardio' },
     
-    // Hormones & Androgens (Testosterone, PSA, Estradiol, Progesterone)
     { patterns: [/rapporto\s*psa\s*libero/i, /psa.*ratio/i, /psa\s*libero\s*\/\s*psa\s*tot/i], code: 'PSA_RATIO', name: 'Free / Total PSA Ratio', defaultUnit: '%', category: 'hormones' },
     { patterns: [/psa\s*libero/i, /free\s*psa/i], code: 'PSA_FREE', name: 'Free PSA', defaultUnit: 'ng/mL', category: 'hormones' },
     { patterns: [/antigene\s*prostatico/i, /\bpsa\s*tot/i, /\bpsa\b/i], code: 'PSA_TOTAL', name: 'Total PSA', defaultUnit: 'ng/mL', category: 'hormones' },
@@ -1033,12 +1097,10 @@ document.addEventListener('DOMContentLoaded', () => {
     { patterns: [/estradiolo/i, /estradiol/i, /\be2\b/i], code: 'ESTRADIOL', name: 'Estradiol (E2)', defaultUnit: 'pg/mL', category: 'hormones' },
     { patterns: [/progesterone/i], code: 'PROGESTERONE', name: 'Progesterone', defaultUnit: 'ng/mL', category: 'hormones' },
 
-    // Endocrine / Thyroid (TSH, FT3, FT4)
     { patterns: [/tsh\b/i, /tireostimolante/i, /thyroid\s*stimulating/i], code: 'TSH', name: 'TSH (Thyroid Stimulating Hormone)', defaultUnit: 'µIU/mL', category: 'endocrine' },
     { patterns: [/ft4\b/i, /t4\s*libero/i, /free\s*t4/i, /tiroxina\s*libera/i], code: 'FREE_T4', name: 'Free T4', defaultUnit: 'ng/dL', category: 'endocrine' },
     { patterns: [/ft3\b/i, /t3\s*libero/i, /free\s*t3/i, /triiodotironina\s*libera/i], code: 'FREE_T3', name: 'Free T3', defaultUnit: 'pg/mL', category: 'endocrine' },
 
-    // Hematology & Iron
     { patterns: [/ferritina/i, /ferritin/i], code: 'FERRITIN', name: 'Ferritin', defaultUnit: 'ng/mL', category: 'hematology' },
     { patterns: [/sideremia/i, /ferro\s*totale/i, /serum\s*iron/i], code: 'IRON', name: 'Serum Iron', defaultUnit: 'µg/dL', category: 'hematology' },
     { patterns: [/emoglobina\b/i, /hemoglobin\b/i, /\bhgb\b/i], code: 'HEMOGLOBIN', name: 'Hemoglobin', defaultUnit: 'g/dL', category: 'hematology' },
@@ -1046,7 +1108,6 @@ document.addEventListener('DOMContentLoaded', () => {
     { patterns: [/leucociti/i, /globuli\s*bianchi/i, /\bwbc\b/i], code: 'WBC', name: 'White Blood Cells (WBC)', defaultUnit: 'K/µL', category: 'hematology' },
     { patterns: [/piastrine/i, /platelets/i, /\bplt\b/i], code: 'PLATELETS', name: 'Platelets', defaultUnit: 'K/µL', category: 'hematology' },
 
-    // Metabolic & Renal & Liver (Glicemia, HbA1c, Creatinina, Acido Urico, ALT, AST)
     { patterns: [/glicemia/i, /fasting\s*glucose/i, /\bglucose\b/i], code: 'GLUCOSE', name: 'Fasting Glucose', defaultUnit: 'mg/dL', category: 'metabolic' },
     { patterns: [/emoglobina\s*glicata/i, /\bhba1c\b/i, /glycated\s*hemoglobin/i], code: 'HBA1C', name: 'HbA1c', defaultUnit: '%', category: 'metabolic' },
     { patterns: [/creatinina/i, /creatinine/i], code: 'CREATININE', name: 'Serum Creatinine', defaultUnit: 'mg/dL', category: 'metabolic' },
@@ -1054,12 +1115,10 @@ document.addEventListener('DOMContentLoaded', () => {
     { patterns: [/alt\b/i, /sgpt\b/i, /alanina\s*aminotransferasi/i], code: 'ALT', name: 'ALT (SGPT)', defaultUnit: 'U/L', category: 'metabolic' },
     { patterns: [/ast\b/i, /sgot\b/i, /aspartato\s*aminotransferasi/i], code: 'AST', name: 'AST (SGOT)', defaultUnit: 'U/L', category: 'metabolic' },
 
-    // Inflammation & Micronutrients
     { patterns: [/proteina\s*c\s*reattiva/i, /\bhs-crp\b/i, /\bcrp\b/i, /\bpcr\b/i], code: 'HS_CRP', name: 'High-Sensitivity CRP', defaultUnit: 'mg/L', category: 'inflammation' },
     { patterns: [/vitamina\s*d/i, /25-oh/i, /vitamin\s*d/i], code: 'VITAMIN_D', name: '25-OH Vitamin D', defaultUnit: 'ng/mL', category: 'micronutrients' },
     { patterns: [/vitamina\s*b12/i, /cobalamina/i, /vitamin\s*b12/i], code: 'VITAMIN_B12', name: 'Vitamin B12', defaultUnit: 'pg/mL', category: 'micronutrients' },
 
-    // Ophthalmology (Macular OCT)
     { patterns: [/macular.*(od|right|dx)/i, /oct.*(od|right|dx)/i, /spessore\s*maculare.*(od|dx)/i], code: 'MACULAR_THICKNESS_OD', name: 'Central Macular Thickness (OD)', defaultUnit: 'µm', category: 'ophthalmology' },
     { patterns: [/macular.*(os|left|sx)/i, /oct.*(os|left|sx)/i, /spessore\s*maculare.*(os|sx)/i], code: 'MACULAR_THICKNESS_OS', name: 'Central Macular Thickness (OS)', defaultUnit: 'µm', category: 'ophthalmology' }
   ];
@@ -1086,27 +1145,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      // Ignore clinic header / footer metadata lines (phone, vat, address)
       if (trimmed.includes('Tel.') || trimmed.includes('Fax') || trimmed.includes('010.35') || 
           trimmed.includes('laboratorio@') || trimmed.includes('Direttore') || trimmed.includes('P.I.V.A.') ||
           trimmed.includes('Cap.Soc.') || trimmed.includes('Cod.Fisc.') || trimmed.startsWith('METODO')) {
         continue;
       }
 
-      // Check against clinical dictionary
       for (const bio of CLINICAL_DICTIONARY) {
         if (seenCodes.has(bio.code)) continue;
 
         const isMatch = bio.patterns.some(p => p.test(trimmed));
         if (isMatch) {
-          // Extract numeric numbers from line
           const numMatches = trimmed.match(/([0-9]+(?:[,.][0-9]+)?)/g);
           if (numMatches && numMatches.length > 0) {
-            // First numeric match on line is the measured laboratory value
             const rawValue = numMatches[0].replace(',', '.');
             const numVal = parseFloat(rawValue);
 
-            // Extract unit appearing after the number
             const numIdx = trimmed.indexOf(numMatches[0]);
             const afterStr = trimmed.substring(numIdx + numMatches[0].length);
             const unitMatch = afterStr.match(/(?:[\s*#]+)?([a-zA-Z%µ/]+(?:\/[a-zA-Z%µ/]+)?)/);
@@ -1171,7 +1225,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <input type="text" class="rev-unit w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-slate-300 font-mono" value="${item.unit}">
         </td>
         <td class="py-2.5 px-3 w-36">
-          <select class="rev-cat w-full bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-xs text-slate-300">
+          <select class="rev-cat w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-slate-300">
             <option value="lipids_cardio" ${item.category === 'lipids_cardio' ? 'selected' : ''}>Lipids & Cardio</option>
             <option value="hormones" ${item.category === 'hormones' ? 'selected' : ''}>Hormones</option>
             <option value="endocrine" ${item.category === 'endocrine' ? 'selected' : ''}>Endocrine / Thyroid</option>
@@ -1180,6 +1234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <option value="inflammation" ${item.category === 'inflammation' ? 'selected' : ''}>Inflammation</option>
             <option value="ophthalmology" ${item.category === 'ophthalmology' ? 'selected' : ''}>Ophthalmology</option>
             <option value="micronutrients" ${item.category === 'micronutrients' ? 'selected' : ''}>Micronutrients</option>
+            <option value="cardiovascular" ${item.category === 'cardiovascular' ? 'selected' : ''}>Cardiovascular / ECG</option>
             <option value="general" ${item.category === 'general' ? 'selected' : ''}>General</option>
           </select>
         </td>
