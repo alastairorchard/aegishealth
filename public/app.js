@@ -7,9 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.lucide.createIcons();
   }
 
-  // Supabase Cloud Configuration (Dedicated AegisHealth Project)
-  const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://motbikijmbuufadheykm.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdGJpa2lqbWJ1dWZhZGhleWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NjE5NTQsImV4cCI6MjEwNjMzNzk1NH0.59_oyRSpL7OJ8MaG2FOCIWwV4a0N1zWNqClm77oWsoQ';
+  // Supabase Cloud Configuration (Unified Production Supabase Project)
+  const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://bfwlzobdpbuippfbbjud.supabase.co';
+  const SUPABASE_ANON_KEY = localStorage.getItem('aegis_sb_key') || 'sb_publishable_PcDpOFZptvEbE0wL8qDyLA_uqqkkf0A';
 
   // Application State
   const state = {
@@ -473,68 +473,52 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   ];
 
+  
+  // ==========================================
+  // UNIFIED REAL-TIME CLOUD & LOCAL SYNCHRONIZATION
+  // ==========================================
   async function loadUserData() {
-    // 1. Ensure Multi-Modal Documents are initialized
-    if (!state.labDocuments || state.labDocuments.length === 0) {
-      state.labDocuments = [...DEFAULT_MULTIMODAL_DOCUMENTS];
-    }
-    // 2. Ensure Clinical Biomarkers are initialized
-    if (!state.biomarkers || state.biomarkers.length === 0) {
-      state.biomarkers = [...DEFAULT_CLINICAL_BIOMARKERS];
-    }
-    // 3. Ensure Conditions Hub is initialized
-    if (!state.conditions || state.conditions.length === 0) {
-      state.conditions = [...DEFAULT_CONDITIONS];
-    }
-
     if (!state.currentUser) return;
-    const userKey = btoa(state.currentUser.email);
+    const userEmail = state.currentUser.email || 'alastairorchard@icloud.com';
+    const userKey = btoa(userEmail);
     const localKey = `aegis_data_${userKey}`;
     
-    // Load from local storage (try user key first, then global vault backup)
+    // 1. Read local storage cache first for instant UI response
     const saved = localStorage.getItem(localKey) || localStorage.getItem('aegis_data_global_vault');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.biomarkers && parsed.biomarkers.length > 0) state.biomarkers = parsed.biomarkers;
-        if (parsed.wearableMetrics && parsed.wearableMetrics.length > 0) state.wearableMetrics = parsed.wearableMetrics;
-        if (parsed.labDocuments && parsed.labDocuments.length > 0) state.labDocuments = parsed.labDocuments;
-        if (parsed.conditions && parsed.conditions.length > 0) state.conditions = parsed.conditions;
-        if (parsed.conditionTags && parsed.conditionTags.length > 0) state.conditionTags = parsed.conditionTags;
-        if (parsed.insights && parsed.insights.length > 0) state.insights = parsed.insights;
-        if (parsed.messages && parsed.messages.length > 0) state.messages = parsed.messages;
-        if (parsed.reports && parsed.reports.length > 0) state.reports = parsed.reports;
+        if (Array.isArray(parsed.biomarkers)) state.biomarkers = parsed.biomarkers;
+        if (Array.isArray(parsed.wearableMetrics)) state.wearableMetrics = parsed.wearableMetrics;
+        if (Array.isArray(parsed.labDocuments)) state.labDocuments = parsed.labDocuments;
+        if (Array.isArray(parsed.conditions)) state.conditions = parsed.conditions;
+        if (Array.isArray(parsed.messages)) state.messages = parsed.messages;
+        if (Array.isArray(parsed.reports)) state.reports = parsed.reports;
       } catch (e) {
-        console.warn('Local data parse error:', e);
+        console.warn('Local cache parse warning:', e);
       }
     }
 
-    saveUserData(); // Ensure fully initialized state is persisted locally
-
-    // Attempt cloud sync merge (without overwriting if cloud is empty)
+    // 2. Query Supabase Cloud Database & Merge
     if (state.supabase) {
       try {
         const { data, error } = await state.supabase
           .from('aegis_user_vaults')
           .select('vault_payload, updated_at')
-          .eq('user_email', state.currentUser.email)
+          .eq('user_email', userEmail)
           .maybeSingle();
 
         if (!error && data && data.vault_payload) {
-          const cloudVault = data.vault_payload;
-          if (cloudVault.biomarkers && cloudVault.biomarkers.length > 0) state.biomarkers = cloudVault.biomarkers;
-          if (cloudVault.wearableMetrics && cloudVault.wearableMetrics.length > 0) state.wearableMetrics = cloudVault.wearableMetrics;
-          if (cloudVault.labDocuments && cloudVault.labDocuments.length > 0) state.labDocuments = cloudVault.labDocuments;
-          if (cloudVault.conditions && cloudVault.conditions.length > 0) state.conditions = cloudVault.conditions;
-          if (cloudVault.messages && cloudVault.messages.length > 0) state.messages = cloudVault.messages;
-          if (cloudVault.reports && cloudVault.reports.length > 0) state.reports = cloudVault.reports;
-
-          saveUserData(); // Resave synchronized state locally
+          const cloud = data.vault_payload;
+          mergeCloudWithLocal(cloud);
           const lastSyncEl = document.getElementById('lastSyncTime');
           if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
+        } else if (state.biomarkers.length > 0) {
+          // If cloud is empty but local has data, immediately push to cloud
+          await saveUserData();
         }
       } catch (err) {
-        console.warn('Supabase cloud fetch notice:', err);
+        console.warn('Supabase cloud fetch error:', err);
       }
     }
 
@@ -543,20 +527,72 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function mergeCloudWithLocal(cloudVault) {
+    if (!cloudVault) return;
+
+    // Merge Biomarkers (deduplicate by biomarker_code + test_date)
+    const bMap = new Map();
+    (state.biomarkers || []).forEach(b => bMap.set(`${b.biomarker_code}:${b.test_date}`, b));
+    (cloudVault.biomarkers || []).forEach(b => bMap.set(`${b.biomarker_code}:${b.test_date}`, b));
+    state.biomarkers = Array.from(bMap.values()).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
+
+    // Merge Documents (deduplicate by id or title+date)
+    const dMap = new Map();
+    (state.labDocuments || []).forEach(d => dMap.set(d.id || `${d.document_title}:${d.test_date}`, d));
+    (cloudVault.labDocuments || []).forEach(d => dMap.set(d.id || `${d.document_title}:${d.test_date}`, d));
+    state.labDocuments = Array.from(dMap.values()).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
+
+    // Merge Conditions (deduplicate by title)
+    const cMap = new Map();
+    (state.conditions || []).forEach(c => cMap.set(c.title.toLowerCase().trim(), c));
+    (cloudVault.conditions || []).forEach(c => cMap.set(c.title.toLowerCase().trim(), c));
+    state.conditions = Array.from(cMap.values());
+
+    // Merge Wearables (deduplicate by metric_type + date)
+    const wMap = new Map();
+    (state.wearableMetrics || []).forEach(w => wMap.set(`${w.metric_type}:${(w.recorded_at||'').substring(0,10)}`, w));
+    (cloudVault.wearableMetrics || []).forEach(w => wMap.set(`${w.metric_type}:${(w.recorded_at||'').substring(0,10)}`, w));
+    state.wearableMetrics = Array.from(wMap.values()).sort((a, b) => new Date(b.recorded_at||0) - new Date(a.recorded_at||0)).slice(0, 500);
+
+    if (Array.isArray(cloudVault.messages) && cloudVault.messages.length > state.messages.length) {
+      state.messages = cloudVault.messages;
+    }
+    if (Array.isArray(cloudVault.reports) && cloudVault.reports.length > state.reports.length) {
+      state.reports = cloudVault.reports;
+    }
+
+    // Save consolidated merge locally
+    const userKey = state.currentUser ? btoa(state.currentUser.email) : '';
+    if (userKey) {
+      const bundle = {
+        user_email: state.currentUser.email,
+        user_profile: state.currentUser,
+        biomarkers: state.biomarkers,
+        wearableMetrics: state.wearableMetrics,
+        labDocuments: state.labDocuments,
+        conditions: state.conditions,
+        messages: state.messages,
+        reports: state.reports,
+        updated_at: new Date().toISOString()
+      };
+      localStorage.setItem(`aegis_data_${userKey}`, JSON.stringify(bundle));
+      localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle));
+    }
+  }
+
   async function saveUserData() {
     if (!state.currentUser) return;
-    const userKey = btoa(state.currentUser.email);
+    const userEmail = state.currentUser.email || 'alastairorchard@icloud.com';
+    const userKey = btoa(userEmail);
     const localKey = `aegis_data_${userKey}`;
 
-    // Ensure wearable metrics are bounded to the latest 365 days of distinct daily points to stay strictly under 5MB browser quota
+    // Bound wearable metrics to prevent storage quota overflow
     if (state.wearableMetrics && state.wearableMetrics.length > 500) {
-      const sorted = [...state.wearableMetrics].sort((a, b) => new Date(b.recorded_at || 0) - new Date(a.recorded_at || 0));
-      // Deduplicate by metric_type + date
       const seen = new Set();
       const pruned = [];
+      const sorted = [...state.wearableMetrics].sort((a, b) => new Date(b.recorded_at || 0) - new Date(a.recorded_at || 0));
       for (const w of sorted) {
-        const d = (w.recorded_at || '').substring(0, 10);
-        const k = `${w.metric_type}:${d}`;
+        const k = `${w.metric_type}:${(w.recorded_at || '').substring(0, 10)}`;
         if (!seen.has(k)) {
           seen.add(k);
           pruned.push(w);
@@ -565,57 +601,50 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       state.wearableMetrics = pruned;
     }
-    
+
     const bundle = {
-      user_email: state.currentUser.email,
+      user_email: userEmail,
       user_profile: state.currentUser,
       biomarkers: state.biomarkers,
       wearableMetrics: state.wearableMetrics,
       labDocuments: state.labDocuments,
       conditions: state.conditions,
-      conditionTags: state.conditionTags,
-      insights: state.insights,
       messages: state.messages,
       reports: state.reports,
       updated_at: new Date().toISOString()
     };
 
+    // 1. Always save locally
     try {
       localStorage.setItem(localKey, JSON.stringify(bundle));
       localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle));
-    } catch (quotaErr) {
-      console.warn('LocalStorage quota guard triggered, compressing telemetry:', quotaErr);
-      // Prune wearable metrics down to latest 180 days
-      bundle.wearableMetrics = (bundle.wearableMetrics || []).slice(0, 200);
-      try {
-        localStorage.setItem(localKey, JSON.stringify(bundle));
-        localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle));
-      } catch (e) {
-        console.error('Final storage error:', e);
-      }
+    } catch (e) {
+      console.warn('Storage quota compression:', e);
     }
 
+    // 2. ALWAYS sync with Supabase Cloud
     if (state.supabase) {
       try {
-        state.supabase
+        const { error } = await state.supabase
           .from('aegis_user_vaults')
           .upsert([{
-            user_email: state.currentUser.email,
+            user_email: userEmail,
             vault_payload: bundle,
             updated_at: new Date().toISOString()
-          }], { onConflict: 'user_email' })
-          .then(({ error }) => {
-            if (!error) {
-              const lastSyncEl = document.getElementById('lastSyncTime');
-              if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
-            }
-          })
-          .catch(() => {});
+          }], { onConflict: 'user_email' });
+
+        if (!error) {
+          const lastSyncEl = document.getElementById('lastSyncTime');
+          if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
+        } else {
+          console.warn('Supabase upsert warning:', error.message);
+        }
       } catch (err) {
-        console.warn('Cloud sync error:', err);
+        console.warn('Cloud save error:', err);
       }
     }
   }
+
 
   function setupRealtimeCloudListener() {
     if (!state.supabase || !state.currentUser) return;
