@@ -849,9 +849,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (tabId === 'overview') {
+      renderDynamicOverviewGrid();
+      renderOverviewInsights();
+      renderOverviewConditions();
       renderOverviewChart();
     } else if (tabId === 'trends') {
       renderTrendsTab();
+    } else if (tabId === 'labs') {
+      renderLabDocsGrid();
+    } else if (tabId === 'conditions') {
+      renderConditionsGrid();
+    } else if (tabId === 'doc') {
+      renderDocChatMessages();
+    } else if (tabId === 'reports') {
+      renderReportsView();
     }
   }
 
@@ -2144,23 +2155,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function ensureLabDocumentsSynchronized() {
-    if ((!state.labDocuments || state.labDocuments.length === 0) && state.biomarkers && state.biomarkers.length > 0) {
-      // Group biomarkers by distinct test date and create document cards
-      const dates = Array.from(new Set(state.biomarkers.map(b => b.test_date || new Date().toISOString().split('T')[0])));
-      state.labDocuments = dates.map((dStr, idx) => {
-        const markersForDate = state.biomarkers.filter(b => (b.test_date || '').startsWith(dStr));
-        return {
-          id: 'doc-auto-' + idx,
-          user_id: state.currentUser?.id || 'demo-user',
-          document_title: `Verified Clinical Pathology Panel (${dStr})`,
-          lab_provider: 'Laboratorio di Analisi Cliniche',
-          test_date: dStr,
-          file_name: `Clinical_Lab_Report_${dStr.replace(/-/g, '')}.pdf`,
-          file_size_bytes: 485000,
-          mime_type: 'application/pdf',
-          ai_interpretation_summary: `Extracted and verified ${markersForDate.length} biomarker(s): ${markersForDate.map(b => b.biomarker_name).join(', ')}.`
-        };
-      });
+    if (!state.labDocuments || state.labDocuments.length === 0) {
+      state.labDocuments = JSON.parse(JSON.stringify(DEFAULT_MULTIMODAL_DOCUMENTS));
+      saveUserData();
     }
   }
 
