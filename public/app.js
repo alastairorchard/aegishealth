@@ -228,9 +228,34 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   function showAuthError(msg) {
-    authErrorMsg.textContent = msg;
     authErrorMsg.classList.remove('hidden');
+    if (msg && msg.toLowerCase().includes('invalid api key')) {
+      authErrorMsg.innerHTML = `
+        <div class="space-y-2">
+          <p class="font-bold text-rose-300">⚠️ Invalid Supabase API Key for project <code>motbikijmbuufadheykm</code>.</p>
+          <p class="text-[11px] text-slate-300">Paste your project's current <strong>Anon / Publishable Key</strong> from your Supabase Dashboard:</p>
+          <div class="flex gap-1.5 pt-1">
+            <input type="***" id="inlineSbKeyInput" placeholder="eyJhbG... or sb_publishable_..." class="flex-1 bg-[#0c1429] border border-rose-500/50 rounded-lg px-2.5 py-1 text-white text-xs font-mono">
+            <button type="button" onclick="saveInlineSbKey()" class="px-3 py-1 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-lg text-xs cursor-pointer">
+              Save & Retry
+            </button>
+          </div>
+        </div>
+      `;
+    } else {
+      authErrorMsg.textContent = msg;
+    }
   }
+
+  window.saveInlineSbKey = async function() {
+    const k = (document.getElementById('inlineSbKeyInput')?.value || '').trim();
+    if (!k) return;
+    localStorage.setItem('aegis_sb_key', k);
+    initSupabaseClient();
+    authErrorMsg.classList.add('hidden');
+    // Trigger submit
+    authForm.dispatchEvent(new Event('submit'));
+  };
 
   function unlockApp() {
     authGateModal.classList.add('hidden');
