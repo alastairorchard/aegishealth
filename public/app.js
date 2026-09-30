@@ -1544,8 +1544,15 @@ Core Clinical Architecture:
 Tone & Structure:
 Be thorough, structured, empathetic, and relentlessly evidence-based. Format responses with clean Markdown headers, bullet points, and actionable next steps. Never invent fictional lab values.`;
 
-  async function queryGeminiDirect(promptText, apiKey) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    async function queryGeminiDirect(promptText, apiKey) {
+    const candidateModels = [
+      'gemini-2.5-flash',
+      'gemini-1.5-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-2.5-pro',
+      'gemini-1.5-pro'
+    ];
+
     const payload = {
       contents: [
         {
@@ -1562,24 +1569,41 @@ Be thorough, structured, empathetic, and relentlessly evidence-based. Format res
       }
     };
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    let lastError = null;
 
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson?.error?.message || `Gemini API returned HTTP ${res.status}`);
+    for (const modelId of candidateModels) {
+      try {
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=***}`;
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const candidate = data.candidates?.[0];
+          const textPart = candidate?.content?.parts?.[0]?.text;
+          if (textPart) {
+            return textPart;
+          }
+        } else {
+          const errJson = await res.json().catch(() => ({}));
+          const errMsg = errJson?.error?.message || `HTTP ${res.status}`;
+          lastError = new Error(`[${modelId}] ${errMsg}`);
+          // If model is not found/deprecated, continue to next candidate
+          if (res.status === 404 || errMsg.includes('not found') || errMsg.includes('no longer available')) {
+            continue;
+          } else {
+            throw lastError;
+          }
+        }
+      } catch (err) {
+        lastError = err;
+      }
     }
 
-    const data = await res.json();
-    const candidate = data.candidates?.[0];
-    const textPart = candidate?.content?.parts?.[0]?.text;
-    if (!textPart) {
-      throw new Error('Gemini API returned empty response.');
-    }
-    return textPart;
+    throw lastError || new Error('Could not connect to any active Google Gemini model.');
   }
 
   const docChatForm = document.getElementById('docChatForm');
