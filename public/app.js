@@ -603,27 +603,14 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'aegis_vault_' + email.toLowerCase().replace(/[^a-zA-Z0-9_]/g, '_');
   }
 
-  async function loadUserData() {
+    async function loadUserData() {
     if (!state.currentUser) return;
     const userEmail = state.currentUser.email || 'alastairorchard@icloud.com';
     const userKey = btoa(userEmail);
     const localKey = `aegis_data_${userKey}`;
-    
-    // Check if user has explicitly wiped vault
-    const isWiped = localStorage.getItem(`aegis_wiped_${userKey}`);
-    if (isWiped === 'true') {
-      state.biomarkers = [];
-      state.wearableMetrics = [];
-      state.labDocuments = [];
-      state.conditions = [];
-      state.messages = [];
-      state.reports = [];
-      initDocGreeting();
-      return;
-    }
 
-    // 1. Read local cache first
-    const saved = localStorage.getItem(localKey);
+    // 1. Read local storage cache first for instant UI population
+    const saved = localStorage.getItem(localKey) || localStorage.getItem('aegis_data_global_vault');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -638,7 +625,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. Query Supabase Cloud Database (using verified events table sync)
+    // 2. Query Supabase Cloud Database & Merge
     if (state.supabase) {
       try {
         const vaultId = getVaultRecordId();
@@ -659,7 +646,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         }
       } catch (err) {
-        console.warn('Supabase cloud fetch error:', err);
+        console.warn('Supabase cloud fetch notice:', err);
       }
     }
 
@@ -721,13 +708,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  async function saveUserData() {
+    async function saveUserData() {
     if (!state.currentUser) return;
     const userEmail = state.currentUser.email || 'alastairorchard@icloud.com';
     const userKey = btoa(userEmail);
     const localKey = `aegis_data_${userKey}`;
 
-    // Bound wearable metrics to latest 400 points
+    // Clear any stale wipe flag when saving new data
+    try {
+      localStorage.removeItem(`aegis_wiped_${userKey}`);
+    } catch(e) {}
+
+    // Bound wearable metrics to latest 400 points to stay under quota
     if (state.wearableMetrics && state.wearableMetrics.length > 500) {
       const seen = new Set();
       const pruned = [];
