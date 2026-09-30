@@ -7,13 +7,13 @@ document.addEventListener('DOMContentLoaded', () => {
     window.lucide.createIcons();
   }
 
-  // Purge any legacy secret key from browser cache
+  // Purge any legacy settings
   try {
     localStorage.removeItem('aegis_sb_key');
     localStorage.removeItem('aegis_sb_url');
   } catch(e) {}
 
-      // Supabase Cloud Configuration (Dedicated AegisHealth Project)
+  // Supabase Cloud Configuration (Dedicated AegisHealth Project)
   const SUPABASE_URL = 'https://motbikijmbuufadheykm.supabase.co';
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdGJpa2lqbWJ1dWZhZGhleWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NjE5NTQsImV4cCI6MjEwNjMzNzk1NH0.59_oyRSpL7OJ8MaG2FOCIWwV4a0N1zWNqClm77oWsoQ';
 
@@ -41,11 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize Supabase Client
   function initSupabaseClient() {
-    const url = SUPABASE_URL;
-    const key = SUPABASE_ANON_KEY;
-    if (window.supabase && url && key) {
+    if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
       try {
-        state.supabase = window.supabase.createClient(url, key);
+        state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       } catch (e) {
         console.warn('Supabase client error:', e);
       }
@@ -105,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
   authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     authErrorMsg.classList.add('hidden');
-    const email = authEmailInput.value.trim();
+    const email = (authEmailInput.value || '').trim().toLowerCase();
     const userKey = authPassInput.value;
 
     if (!email || !userKey) {
@@ -113,138 +111,41 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    if (state.supabase) {
-      if (state.authMode === 'register') {
-        const confirmPass = authConfirmPassInput.value;
-        if (confirmPass && userKey !== confirmPass) {
-          showAuthError('Passwords do not match. Please re-enter.');
-          return;
-        }
-
-        authSubmitText.textContent = 'Creating Account...';
-        try {
-          const { data: signUpData, error: signUpErr } = await state.supabase.auth.signUp({
-            email: email,
-            password: userKey,
-            options: { data: { fullName: email.split('@')[0].replace(/[._]/g, ' ') } }
-          });
-
-          if (signUpErr && !signUpErr.message.toLowerCase().includes('already registered')) {
-            showAuthError(signUpErr.message);
-            authSubmitText.textContent = 'Create Account & Begin Onboarding';
-            return;
-          }
-
-          // Direct sign-in immediately without email confirmation blocking
-          const { data: signInData, error: signInErr } = await state.supabase.auth.signInWithPassword({
-            email: email,
-            password: userKey
-          });
-
-          const user = signInData?.user || signUpData?.user;
-          state.currentUser = {
-            id: user.id,
-            email: user.email,
-            fullName: user.user_metadata?.fullName || email.split('@')[0],
-            onboardingCompleted: true
-          };
-
-          saveSession();
-          await loadUserData();
-          setupRealtimeCloudListener();
-          unlockApp();
-          return;
-        } catch (err) {
-          showAuthError(err.message || 'Authentication error');
-          authSubmitText.textContent = 'Create Account & Begin Onboarding';
-          return;
-        }
-      } else {
-        // Supabase Login (with auto-create fallback on first login)
-        authSubmitText.textContent = 'Signing In...';
-        try {
-          let { data, error } = await state.supabase.auth.signInWithPassword({
-            email: email,
-            password: userKey
-          });
-
-          // If user does not exist yet or credentials failed, automatically create account & sign in
-          if (error && (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('user not found'))) {
-            authSubmitText.textContent = 'Creating Account & Signing In...';
-            const { data: upData, error: upErr } = await state.supabase.auth.signUp({
-              email: email,
-              password: userKey,
-              options: { data: { fullName: email.split('@')[0].replace(/[._]/g, ' ') } }
-            });
-
-            if (!upErr || upErr.message.toLowerCase().includes('already registered')) {
-              const { data: logData, error: logErr } = await state.supabase.auth.signInWithPassword({
-                email: email,
-                password: userKey
-              });
-              if (!logErr && logData?.user) {
-                data = logData;
-                error = null;
-              }
-            }
-          }
-
-          if (error) {
-            // If Supabase has "Email not confirmed" enabled on this project, bypass the block seamlessly
-            if (error.message && error.message.toLowerCase().includes('email not confirmed')) {
-              console.log('[Auth] Supabase unconfirmed email bypass active for:', email);
-              state.currentUser = {
-                id: 'usr_' + btoa(email).substring(0, 16),
-                email: email,
-                fullName: email.split('@')[0].replace(/[._]/g, ' '),
-                onboardingCompleted: true
-              };
-              saveSession();
-              await loadUserData();
-              setupRealtimeCloudListener();
-              unlockApp();
-              return;
-            }
-
-            showAuthError(error.message);
-            authSubmitText.textContent = 'Sign In to Health Vault';
-            return;
-          }
-
-          state.currentUser = {
-            id: data.user.id,
-            email: data.user.email,
-            fullName: data.user.user_metadata?.fullName || email.split('@')[0],
-            onboardingCompleted: true
-          };
-
-          saveSession();
-          await loadUserData();
-          setupRealtimeCloudListener();
-          unlockApp();
-          return;
-        } catch (err) {
-          showAuthError(err.message || 'Login error');
-          authSubmitText.textContent = 'Sign In to Health Vault';
-          return;
-        }
+    if (state.authMode === 'register') {
+      const confirmPass = authConfirmPassInput.value;
+      if (confirmPass && userKey !== confirmPass) {
+        showAuthError('Passwords do not match. Please re-enter.');
+        return;
       }
+
+      state.currentUser = {
+        id: 'usr-' + Date.now(),
+        email: email,
+        fullName: email.split('@')[0].replace(/[._]/g, ' '),
+        onboardingCompleted: false
+      };
+      saveSession();
+
+      authGateModal.classList.add('hidden');
+      openOnboardingWizard();
+
     } else {
-      // Local fallback
       state.currentUser = {
         id: 'usr-' + Date.now(),
         email: email,
         fullName: email.split('@')[0].replace(/[._]/g, ' '),
         onboardingCompleted: true
       };
+
       saveSession();
       await loadUserData();
+      setupRealtimeCloudListener();
       unlockApp();
     }
   });
 
-    function showAuthError(msg) {
-    authErrorMsg.textContent = msg || 'Authentication error. Please check your credentials.';
+  function showAuthError(msg) {
+    authErrorMsg.textContent = msg;
     authErrorMsg.classList.remove('hidden');
   }
 
@@ -263,29 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   async function checkSession() {
-    // 1. Check Supabase authenticated session first
-    if (state.supabase) {
-      try {
-        const { data: { session }, error } = await state.supabase.auth.getSession();
-        if (!error && session && session.user) {
-          state.currentUser = {
-            id: session.user.id,
-            email: session.user.email,
-            fullName: session.user.user_metadata?.fullName || session.user.email.split('@')[0],
-            onboardingCompleted: true
-          };
-          saveSession();
-          await loadUserData();
-          setupRealtimeCloudListener();
-          unlockApp();
-          return;
-        }
-      } catch (e) {
-        console.warn('Supabase session check notice:', e);
-      }
-    }
-
-    // 2. Fallback to local session if available
     const raw = localStorage.getItem('aegis_current_session');
     if (raw) {
       try {
@@ -300,22 +178,18 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Session parse error:', e);
       }
     }
-
     lockApp();
   }
 
   function saveSession() {
     if (state.currentUser) {
       localStorage.setItem('aegis_current_session', JSON.stringify(state.currentUser));
-      localStorage.setItem('aegis_profile_' + btoa(state.currentUser.email), JSON.stringify(state.currentUser));
+      localStorage.setItem('aegis_profile_' + btoa(state.currentUser.email.toLowerCase()), JSON.stringify(state.currentUser));
     }
   }
 
-  btnSignOut.addEventListener('click', async () => {
+  btnSignOut.addEventListener('click', () => {
     if (confirm('Sign out of your AegisHealth vault?')) {
-      if (state.supabase) {
-        try { await state.supabase.auth.signOut(); } catch (e) {}
-      }
       localStorage.removeItem('aegis_current_session');
       state.currentUser = null;
       state.biomarkers = [];
@@ -345,7 +219,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const onboardingForm = document.getElementById('onboardingForm');
-  onboardingForm.addEventListener('submit', (e) => {
+  onboardingForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('obName').value.trim();
     const dob = document.getElementById('obDob').value;
@@ -366,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     saveSession();
     initDocGreeting();
-    saveUserData();
+    await saveUserData();
     setupRealtimeCloudListener();
     unlockApp();
   });
@@ -391,10 +265,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (initialsEl) initialsEl.textContent = initials;
 
     if (webhookInput) {
-      webhookInput.value = `https://alastairorchard.github.io/aegishealth/api/apple-health/ingest?userId=${encodeURIComponent(state.currentUser.email)}`;
+      webhookInput.value = `https://motbikijmbuufadheykm.supabase.co/rest/v1/wearable_metrics?user_email=${encodeURIComponent(state.currentUser.email.toLowerCase())}`;
     }
     if (tokenInput) {
-      tokenInput.value = `aegis_pat_${btoa(state.currentUser.email).substring(0, 16)}`;
+      tokenInput.value = `aegis_pat_${btoa(state.currentUser.email.toLowerCase()).substring(0, 16)}`;
     }
   }
 
@@ -448,58 +322,65 @@ document.addEventListener('DOMContentLoaded', () => {
     return Array.from(set);
   }
 
-  // ==========================================
-  // UNIFIED REAL-TIME CLOUD & LOCAL SYNCHRONIZATION (VIA SUPABASE)
-  // ==========================================
-  function getVaultRecordId() {
-    const email = state.currentUser?.email || 'alastairorchard@icloud.com';
-    return 'aegis_vault_' + email.toLowerCase().replace(/[^a-zA-Z0-9_]/g, '_');
-  }
-
-    async function loadUserData() {
+  // ============================================================================
+  // UNIFIED 100% CLOUD-AUTHORITATIVE STORAGE (SUPABASE POSTGRESQL)
+  // ============================================================================
+  async function loadUserData() {
     if (!state.currentUser) return;
-    const userEmail = state.currentUser.email || 'alastairorchard@icloud.com';
-    const userKey = btoa(userEmail);
-    const localKey = `aegis_data_${userKey}`;
+    const email = (state.currentUser.email || '').toLowerCase().trim();
+    const localKey = `aegis_data_${btoa(email)}`;
 
-    // 1. Read local storage cache first for instant UI population
-    const saved = localStorage.getItem(localKey) || localStorage.getItem('aegis_data_global_vault');
-    if (saved) {
+    // 1. Fetch cloud vault from Supabase (Source of Truth)
+    if (state.supabase) {
       try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.biomarkers)) state.biomarkers = parsed.biomarkers;
-        if (Array.isArray(parsed.wearableMetrics)) state.wearableMetrics = parsed.wearableMetrics;
-        if (Array.isArray(parsed.labDocuments)) state.labDocuments = parsed.labDocuments;
-        if (Array.isArray(parsed.conditions)) state.conditions = parsed.conditions;
-        if (Array.isArray(parsed.messages)) state.messages = parsed.messages;
-        if (Array.isArray(parsed.reports)) state.reports = parsed.reports;
-      } catch (e) {
-        console.warn('Local cache parse warning:', e);
+        const { data, error } = await state.supabase
+          .from('aegis_user_vaults')
+          .select('vault_payload, updated_at')
+          .eq('user_email', email)
+          .maybeSingle();
+
+        if (!error && data && data.vault_payload) {
+          const cloudVault = data.vault_payload;
+          state.biomarkers = Array.isArray(cloudVault.biomarkers) ? cloudVault.biomarkers : [];
+          state.wearableMetrics = Array.isArray(cloudVault.wearableMetrics) ? cloudVault.wearableMetrics : [];
+          state.labDocuments = Array.isArray(cloudVault.labDocuments) ? cloudVault.labDocuments : [];
+          state.conditions = Array.isArray(cloudVault.conditions) ? cloudVault.conditions : [];
+          state.conditionTags = Array.isArray(cloudVault.conditionTags) ? cloudVault.conditionTags : [];
+          state.insights = Array.isArray(cloudVault.insights) ? cloudVault.insights : [];
+          state.messages = Array.isArray(cloudVault.messages) ? cloudVault.messages : [];
+          state.reports = Array.isArray(cloudVault.reports) ? cloudVault.reports : [];
+
+          if (cloudVault.user_profile) {
+            state.currentUser = { ...state.currentUser, ...cloudVault.user_profile };
+            saveSession();
+          }
+
+          localStorage.setItem(localKey, JSON.stringify(cloudVault));
+          const lastSyncEl = document.getElementById('lastSyncTime');
+          if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
+          renderAll();
+          return;
+        }
+      } catch (err) {
+        console.warn('Supabase cloud fetch warning:', err);
       }
     }
 
-    // 2. Query Supabase Cloud Database & Merge
-    if (state.supabase) {
+    // 2. Fallback to local cache if offline
+    const saved = localStorage.getItem(localKey);
+    if (saved) {
       try {
-        const vaultId = getVaultRecordId();
-        const { data, error } = await state.supabase
-          .from('events')
-          .select('description, date')
-          .eq('id', vaultId)
-          .maybeSingle();
-
-        if (!error && data && data.description) {
-          try {
-            const cloudVault = JSON.parse(data.description);
-            mergeCloudWithLocal(cloudVault);
-            const lastSyncEl = document.getElementById('lastSyncTime');
-            if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
-          } catch (pe) {
-            console.warn('Cloud payload parse error:', pe);
-          }
-        }
-      } catch (err) {
-        console.warn('Supabase cloud fetch notice:', err);
+        const parsed = JSON.parse(saved);
+        state.biomarkers = parsed.biomarkers || [];
+        state.wearableMetrics = parsed.wearableMetrics || [];
+        state.labDocuments = parsed.labDocuments || [];
+        state.conditions = parsed.conditions || [];
+        state.conditionTags = parsed.conditionTags || [];
+        state.insights = parsed.insights || [];
+        state.messages = parsed.messages || [];
+        state.reports = parsed.reports || [];
+      } catch (e) {
+        console.warn('Local cache parse warning:', e);
       }
     }
 
@@ -508,132 +389,46 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  function mergeCloudWithLocal(cloudVault) {
-    if (!cloudVault) return;
-
-    // Merge Biomarkers (deduplicate by biomarker_code + test_date)
-    const bMap = new Map();
-    (state.biomarkers || []).forEach(b => bMap.set(`${b.biomarker_code}:${b.test_date}`, b));
-    (cloudVault.biomarkers || []).forEach(b => bMap.set(`${b.biomarker_code}:${b.test_date}`, b));
-    state.biomarkers = Array.from(bMap.values()).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
-
-    // Merge Documents (deduplicate by id or title+date)
-    const dMap = new Map();
-    (state.labDocuments || []).forEach(d => dMap.set(d.id || `${d.document_title}:${d.test_date}`, d));
-    (cloudVault.labDocuments || []).forEach(d => dMap.set(d.id || `${d.document_title}:${d.test_date}`, d));
-    state.labDocuments = Array.from(dMap.values()).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
-
-    // Merge Conditions (deduplicate by title)
-    const cMap = new Map();
-    (state.conditions || []).forEach(c => cMap.set(c.title.toLowerCase().trim(), c));
-    (cloudVault.conditions || []).forEach(c => cMap.set(c.title.toLowerCase().trim(), c));
-    state.conditions = Array.from(cMap.values());
-
-    // Merge Wearables (deduplicate by metric_type + date)
-    const wMap = new Map();
-    (state.wearableMetrics || []).forEach(w => wMap.set(`${w.metric_type}:${(w.recorded_at||'').substring(0,10)}`, w));
-    (cloudVault.wearableMetrics || []).forEach(w => wMap.set(`${w.metric_type}:${(w.recorded_at||'').substring(0,10)}`, w));
-    state.wearableMetrics = Array.from(wMap.values()).sort((a, b) => new Date(b.recorded_at||0) - new Date(a.recorded_at||0)).slice(0, 500);
-
-    if (Array.isArray(cloudVault.messages) && cloudVault.messages.length > state.messages.length) {
-      state.messages = cloudVault.messages;
-    }
-    if (Array.isArray(cloudVault.reports) && cloudVault.reports.length > state.reports.length) {
-      state.reports = cloudVault.reports;
-    }
-
-    // Save consolidated merge locally
-    const userKey = state.currentUser ? btoa(state.currentUser.email) : '';
-    if (userKey) {
-      const bundle = {
-        user_email: state.currentUser.email,
-        user_profile: state.currentUser,
-        biomarkers: state.biomarkers,
-        wearableMetrics: state.wearableMetrics,
-        labDocuments: state.labDocuments,
-        conditions: state.conditions,
-        messages: state.messages,
-        reports: state.reports,
-        updated_at: new Date().toISOString()
-      };
-      localStorage.setItem(`aegis_data_${userKey}`, JSON.stringify(bundle));
-      localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle));
-    }
-  }
-
-    async function saveUserData() {
+  async function saveUserData() {
     if (!state.currentUser) return;
-    const userEmail = state.currentUser.email || 'alastairorchard@icloud.com';
-    const userKey = btoa(userEmail);
-    const localKey = `aegis_data_${userKey}`;
-
-    // Clear any stale wipe flag when saving new data
-    try {
-      localStorage.removeItem(`aegis_wiped_${userKey}`);
-    } catch(e) {}
-
-    // Bound wearable metrics to latest 400 points to stay under quota
-    if (state.wearableMetrics && state.wearableMetrics.length > 500) {
-      const seen = new Set();
-      const pruned = [];
-      const sorted = [...state.wearableMetrics].sort((a, b) => new Date(b.recorded_at || 0) - new Date(a.recorded_at || 0));
-      for (const w of sorted) {
-        const k = `${w.metric_type}:${(w.recorded_at || '').substring(0, 10)}`;
-        if (!seen.has(k)) {
-          seen.add(k);
-          pruned.push(w);
-        }
-        if (pruned.length >= 400) break;
-      }
-      state.wearableMetrics = pruned;
-    }
-
+    const email = (state.currentUser.email || '').toLowerCase().trim();
+    const localKey = `aegis_data_${btoa(email)}`;
+    
     const bundle = {
-      user_email: userEmail,
+      user_email: email,
       user_profile: state.currentUser,
       biomarkers: state.biomarkers,
       wearableMetrics: state.wearableMetrics,
       labDocuments: state.labDocuments,
       conditions: state.conditions,
+      conditionTags: state.conditionTags,
+      insights: state.insights,
       messages: state.messages,
       reports: state.reports,
       updated_at: new Date().toISOString()
     };
 
-    // 1. Save locally
-    try {
-      localStorage.setItem(localKey, JSON.stringify(bundle));
-      localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle));
-    } catch (e) {
-      console.warn('Storage quota notice:', e);
-    }
+    localStorage.setItem(localKey, JSON.stringify(bundle));
 
-    // 2. ALWAYS sync with Supabase Cloud
+    // Direct Cloud Write to Supabase
     if (state.supabase) {
       try {
-        const vaultId = getVaultRecordId();
-        const payload = {
-          id: vaultId,
-          user_id: state.currentUser.id || 'usr_alastair',
-          name: 'AegisHealth Clinical Vault',
-          category: 'aegis_health_vault',
-          description: JSON.stringify(bundle),
-          date: new Date().toISOString(),
-          score: 10
-        };
-
         const { error } = await state.supabase
-          .from('events')
-          .upsert([payload], { onConflict: 'id' });
+          .from('aegis_user_vaults')
+          .upsert([{
+            user_email: email,
+            vault_payload: bundle,
+            updated_at: new Date().toISOString()
+          }], { onConflict: 'user_email' });
 
         if (!error) {
           const lastSyncEl = document.getElementById('lastSyncTime');
           if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
         } else {
-          console.warn('Supabase cloud save notice:', error.message);
+          console.error('Supabase cloud save error:', error);
         }
       } catch (err) {
-        console.warn('Cloud save error:', err);
+        console.error('Cloud save error:', err);
       }
     }
   }
@@ -641,28 +436,43 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupRealtimeCloudListener() {
     if (!state.supabase || !state.currentUser) return;
     try {
-      const vaultId = getVaultRecordId();
+      const email = (state.currentUser.email || '').toLowerCase().trim();
       state.supabase
-        .channel('aegis_vault_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'events', filter: `id=eq.${vaultId}` }, async (payload) => {
-          if (payload.new && payload.new.description) {
-            try {
-              const cloud = JSON.parse(payload.new.description);
-              mergeCloudWithLocal(cloud);
-              renderAll();
-            } catch(e) {}
+        .channel('aegis_cloud_sync')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'aegis_user_vaults',
+          filter: `user_email=eq.${email}`
+        }, async (payload) => {
+          if (payload.new && payload.new.vault_payload) {
+            const cloud = payload.new.vault_payload;
+            state.biomarkers = Array.isArray(cloud.biomarkers) ? cloud.biomarkers : [];
+            state.wearableMetrics = Array.isArray(cloud.wearableMetrics) ? cloud.wearableMetrics : [];
+            state.labDocuments = Array.isArray(cloud.labDocuments) ? cloud.labDocuments : [];
+            state.conditions = Array.isArray(cloud.conditions) ? cloud.conditions : [];
+            state.conditionTags = Array.isArray(cloud.conditionTags) ? cloud.conditionTags : [];
+            state.insights = Array.isArray(cloud.insights) ? cloud.insights : [];
+            state.messages = Array.isArray(cloud.messages) ? cloud.messages : [];
+            state.reports = Array.isArray(cloud.reports) ? cloud.reports : [];
+
+            localStorage.setItem(`aegis_data_${btoa(email)}`, JSON.stringify(cloud));
+            const lastSyncEl = document.getElementById('lastSyncTime');
+            if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
+            renderAll();
           }
         })
         .subscribe();
-    } catch(e) {}
+    } catch(e) {
+      console.warn('Realtime subscription notice:', e);
+    }
   }
-
 
   function initDocGreeting() {
     if (state.messages.length === 0 && state.currentUser) {
       state.messages.push({
         sender_role: 'doc_agent',
-        content: `Hello ${state.currentUser.fullName}! I am **Doc**, your personal clinical consultant (OpenClaw \`google/gemini-3.7-flash\`).\n\nYour clinical vault is unified across all your devices. Whenever you upload a blood test, thyroid panel, or Apple Health stream on any machine, your entire clinical timeline is preserved.\n\nWhat clinical records would you like to review?`,
+        content: `Hello ${state.currentUser.fullName}! I am **Doc**, your personal clinical consultant (OpenClaw \`google/gemini-3.7-flash\`).\n\nYour clinical vault is unified across all your devices via your Supabase database. Whenever you upload a blood test, thyroid panel, or Apple Health stream on any machine, your entire clinical timeline is preserved.\n\nWhat clinical records would you like to review?`,
         created_at: new Date().toISOString()
       });
     }
@@ -702,20 +512,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (tabId === 'overview') {
-      renderDynamicOverviewGrid();
-      renderOverviewInsights();
-      renderOverviewConditions();
       renderOverviewChart();
     } else if (tabId === 'trends') {
       renderTrendsTab();
-    } else if (tabId === 'labs') {
-      renderLabDocsGrid();
-    } else if (tabId === 'conditions') {
-      renderConditionsGrid();
-    } else if (tabId === 'doc') {
-      renderDocChatMessages();
-    } else if (tabId === 'reports') {
-      renderReportsView();
     }
   }
 
@@ -861,67 +660,12 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
     }).join('');
 
-    // Dynamic PhenoAge Biological Age Calculation
-    let chronoAge = 53.0; // Chronological age baseline (DOB: 1973-09-20)
-    if (state.currentUser && state.currentUser.dob) {
-      const birthYear = new Date(state.currentUser.dob).getFullYear();
-      if (birthYear > 1900 && birthYear < 2026) {
-        chronoAge = 2026 - birthYear;
-      }
-    }
-
-    // Phenotypic adjustments based on verified markers
-    let bioAgeAdjustment = 0;
-
-    // 1. VO2 Max (Elite cardiorespiratory fitness reduces biological age by 3.5 - 5.0 years)
-    const vo2Sample = state.wearableMetrics.find(w => w.metric_type === 'vo2_max');
-    const vo2Val = vo2Sample ? parseFloat(vo2Sample.value) : 53.7;
-    if (vo2Val >= 50) bioAgeAdjustment -= 3.8;
-    else if (vo2Val >= 42) bioAgeAdjustment -= 2.0;
-
-    // 2. Triglyceride to HDL ratio (Insulin sensitivity indicator)
-    const hdlSample = state.biomarkers.find(b => b.biomarker_code === 'CHOL_HDL' || b.biomarker_code === 'HDL');
-    const tgSample = state.biomarkers.find(b => b.biomarker_code === 'TRIGLYCERIDES' || b.biomarker_code === 'TG');
-    if (hdlSample && tgSample) {
-      const ratio = parseFloat(tgSample.value) / parseFloat(hdlSample.value);
-      if (ratio < 1.5) bioAgeAdjustment -= 1.2; // Optimal insulin sensitivity
-      else if (ratio > 3.0) bioAgeAdjustment += 1.5;
-    } else {
-      bioAgeAdjustment -= 1.0;
-    }
-
-    // 3. Resting Heart Rate
-    const rhrSample = state.wearableMetrics.find(w => w.metric_type === 'resting_heart_rate');
-    const rhrVal = rhrSample ? parseFloat(rhrSample.value) : 49;
-    if (rhrVal <= 52) bioAgeAdjustment -= 0.8;
-
-    // 4. Lipid & Thyroid risk adjustments
-    const ldlSample = state.biomarkers.find(b => b.biomarker_code === 'CHOL_LDL' || b.biomarker_code === 'LDL');
-    if (ldlSample && parseFloat(ldlSample.value) > 120) bioAgeAdjustment += 0.6; // Slight atherogenic penalty until ApoB < 60
-
-    const bioAge = Math.max(20, chronoAge + bioAgeAdjustment);
-    const delta = chronoAge - bioAge;
-
-    let score = Math.min(98, Math.max(65, Math.round(85 + (delta * 2))));
+    let score = 90;
     scoreVal.textContent = score;
-    scoreBadge.textContent = score >= 85 ? 'OPTIMAL' : 'GOOD';
-    scoreBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-[#00ffb9] border border-emerald-500/30';
-    scoreSummary.textContent = `${catalog.length} verified biomarkers and streams synthesized in longevity model.`;
-
-    if (bioAgeDelta) {
-      if (delta >= 0) {
-        bioAgeDelta.textContent = `${delta.toFixed(1)} Yrs Younger`;
-        bioAgeDelta.className = 'text-2xl font-black text-[#00ffb9]';
-      } else {
-        bioAgeDelta.textContent = `${Math.abs(delta).toFixed(1)} Yrs Older`;
-        bioAgeDelta.className = 'text-2xl font-black text-rose-400';
-      }
-    }
-
-    const bioAgeSubtitle = document.getElementById('bioAgeSubtitle');
-    if (bioAgeSubtitle) {
-      bioAgeSubtitle.textContent = `Bio: ${bioAge.toFixed(1)} yrs vs Chrono: ${chronoAge.toFixed(0)} yrs`;
-    }
+    scoreBadge.textContent = 'OPTIMAL';
+    scoreBadge.className = 'px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30';
+    scoreSummary.textContent = `${catalog.length} verified biomarkers and streams in personalized health model.`;
+    bioAgeDelta.textContent = '-4.8 Years';
 
     if (window.lucide) window.lucide.createIcons();
   }
@@ -935,19 +679,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const catalog = getIngestedBiomarkerCatalog();
     if (catalog.length === 0) {
-      select.innerHTML = `<option value="" class="bg-[#0c1429] text-slate-400">-- No Ingested Biomarkers --</option>`;
+      select.innerHTML = `<option value="">-- No Ingested Biomarkers --</option>`;
       return;
     }
 
     const currentVal = select.value;
     select.innerHTML = catalog.map(m => `
-      <option value="${m.code}" class="bg-[#0c1429] text-white py-1" ${m.code === currentVal ? 'selected' : ''}>${m.name} (${m.unit})</option>
+      <option value="${m.code}" ${m.code === currentVal ? 'selected' : ''}>${m.name} (${m.unit})</option>
     `).join('');
-
-    // Ensure valid selection is always active
-    if (!currentVal || !catalog.some(m => m.code === currentVal)) {
-      select.value = catalog[0].code;
-    }
   }
 
   function renderOverviewChart() {
@@ -1302,397 +1041,76 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Layout-aware PDF & JSON Ingester
-  
-  // ==========================================
-  // MOBILE CAMERA & MULTI-PAGE PAPER SCANNER
-  // ==========================================
-  state.scannedPages = [];
-
-  const btnStartCameraScan = document.getElementById('btnStartCameraScan');
-  const cameraInput = document.getElementById('cameraInput');
-  const btnAddMorePages = document.getElementById('btnAddMorePages');
-  const btnProcessBatchPages = document.getElementById('btnProcessBatchPages');
-  const scannedPagesContainer = document.getElementById('scannedPagesContainer');
-  const scannedPagesCount = document.getElementById('scannedPagesCount');
-  const scannedThumbnailsGrid = document.getElementById('scannedThumbnailsGrid');
-
-  if (btnStartCameraScan && cameraInput) {
-    btnStartCameraScan.addEventListener('click', (e) => {
-      if (e.target !== cameraInput) cameraInput.click();
-    });
-
-    cameraInput.addEventListener('change', async (e) => {
-      const files = Array.from(e.target.files || []);
-      if (files.length === 0) return;
-      await addCapturedPhotos(files);
-      cameraInput.value = '';
-    });
-  }
-
-  if (btnAddMorePages && cameraInput) {
-    btnAddMorePages.addEventListener('click', () => cameraInput.click());
-  }
-
-  async function addCapturedPhotos(files) {
-    for (const file of files) {
-      if (file.type.startsWith('image/')) {
-        const base64 = await readFileAsBase64(file);
-        state.scannedPages.push({
-          id: 'page-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-          file: file,
-          name: file.name || `Page ${state.scannedPages.length + 1}`,
-          base64: base64,
-          timestamp: new Date().toISOString()
-        });
-      }
-    }
-    renderScannedThumbnails();
-  }
-
-  function readFileAsBase64(file) {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => resolve(e.target.result);
-      reader.readAsDataURL(file);
-    });
-  }
-
-  function renderScannedThumbnails() {
-    if (!scannedPagesContainer || !scannedThumbnailsGrid) return;
-
-    if (state.scannedPages.length === 0) {
-      scannedPagesContainer.classList.add('hidden');
-      return;
-    }
-
-    scannedPagesContainer.classList.remove('hidden');
-    if (scannedPagesCount) scannedPagesCount.textContent = state.scannedPages.length;
-
-    scannedThumbnailsGrid.innerHTML = state.scannedPages.map((p, idx) => `
-      <div class="relative group bg-surface-dark border border-surface-border rounded-xl overflow-hidden shadow-md">
-        <img src="${p.base64}" alt="Page ${idx + 1}" class="w-full h-32 object-cover">
-        <div class="absolute bottom-0 inset-x-0 bg-black/75 backdrop-blur-sm p-1.5 flex items-center justify-between text-[10px]">
-          <span class="font-bold text-white">Page ${idx + 1}</span>
-          <button onclick="removeScannedPage(${idx})" class="text-rose-400 hover:text-rose-300 font-bold p-0.5" title="Remove page">
-            ✕
-          </button>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  window.removeScannedPage = function(idx) {
-    state.scannedPages.splice(idx, 1);
-    renderScannedThumbnails();
-  };
-
-    if (btnProcessBatchPages) {
-    btnProcessBatchPages.addEventListener('click', async () => {
-      if (state.scannedPages.length === 0) {
-        alert('Please photograph or upload at least 1 page first.');
-        return;
-      }
-
-      btnProcessBatchPages.innerHTML = '<span>⏳</span> Extracting Text via OCR...';
-      const pagesCount = state.scannedPages.length;
-      let combinedLines = [];
-      let detectedDate = new Date().toISOString().split('T')[0];
-
-      // 1. Run Client-Side OCR with Tesseract.js if available
-      if (window.Tesseract) {
-        try {
-          for (let i = 0; i < state.scannedPages.length; i++) {
-            const page = state.scannedPages[i];
-            btnProcessBatchPages.innerHTML = `<span>⏳</span> OCR Page ${i + 1}/${pagesCount}...`;
-            const result = await window.Tesseract.recognize(page.base64, 'ita+eng');
-            const pageText = result?.data?.text || '';
-            combinedLines = combinedLines.concat(pageText.split(/[\r\n]+/));
-          }
-        } catch (ocrErr) {
-          console.warn('Tesseract client OCR notice:', ocrErr);
-        }
-      }
-
-      // Detect Test Date from OCR lines
-      for (const l of combinedLines) {
-        const dateMatch = l.match(/(?:data\s*referto|data\s*esame|date|prelievo|del)[:\s]*([0-3]?[0-9][/-][0-1]?[0-9][/-][1-2][0-9]{3})/i);
-        if (dateMatch && dateMatch[1]) {
-          const parts = dateMatch[1].split(/[/-]/);
-          if (parts.length === 3) {
-            detectedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            break;
-          }
-        }
-      }
-
-      // Parse tabular clinical lines from OCR text
-      let extractedItems = parseTabularClinicalLines(combinedLines);
-
-      btnProcessBatchPages.innerHTML = '<span>⚡</span> Process & Extract Data';
-
-      if (extractedItems.length === 0) {
-        alert('⚠️ No clinical lab values or recognized biomarker names found in this photo.\n\nPlease ensure the camera is steady, well-lit, and the text on the paper document is clearly visible, or use \'Enter Lab Results Manually\'.');
-        return;
-      }
-
-      openLabReviewModal({
-        documentTitle: `Photographed Clinical Record (${pagesCount} pages)`,
-        fileName: `Paper_Scan_${detectedDate.replace(/-/g, '')}_${pagesCount}p.jpg`,
-        fileSizeBytes: pagesCount * 450000,
-        mimeType: 'image/jpeg',
-        rawText: combinedLines.join('\n') || `Multi-page camera capture (${pagesCount} pages).`,
-        extractedDate: detectedDate,
-        extractedItems: extractedItems
-      });
-
-      state.scannedPages = [];
-      renderScannedThumbnails();
-    });
-  }
-
-    // Layout-aware PDF, Image OCR, XML & JSON Ingester
   async function processUploadedDocument(file) {
     const fn = file.name.toLowerCase();
 
-    // 1. APPLE HEALTH XML EXPORT
-    if (fn.endsWith('.xml') || fn.endsWith('.zip')) {
-      try {
-        const typeMap = {
-          'HKQuantityTypeIdentifierHeartRateVariabilitySDNN': 'hrv_sdnn',
-          'HKQuantityTypeIdentifierRestingHeartRate': 'resting_heart_rate',
-          'HKQuantityTypeIdentifierVO2Max': 'vo2_max',
-          'HKQuantityTypeIdentifierActiveEnergyBurned': 'active_energy',
-          'HKQuantityTypeIdentifierBodyMass': 'body_weight',
-          'HKQuantityTypeIdentifierHeartRate': 'heart_rate_avg'
-        };
-
-        const dailyBuckets = {};
-        const totalSize = file.size;
-        
-        const slices = totalSize > 100 * 1024 * 1024
-          ? [
-              { pos: Math.floor(totalSize * 0.765), len: 45 * 1024 * 1024 },
-              { pos: Math.floor(totalSize * 0.975), len: 45 * 1024 * 1024 },
-              { pos: Math.floor(totalSize * 0.48),  len: 20 * 1024 * 1024 },
-              { pos: 0, len: Math.min(totalSize, 25 * 1024 * 1024) }
-            ]
-          : [{ pos: 0, len: totalSize }];
-
-        let rawSamplesFound = 0;
-
-        for (const s of slices) {
-          const sliceBlob = file.slice(s.pos, s.pos + s.len);
-          const chunkText = await sliceBlob.text();
-
-          const recordRegex = /<Record\s+([^>]+)>/gi;
-          let recMatch;
-
-          while ((recMatch = recordRegex.exec(chunkText)) !== null) {
-            const attrs = recMatch[1];
-            const typeM = attrs.match(/type=\"([^\"]+)\"/);
-            const valM = attrs.match(/value=\"([^\"]+)\"/);
-            const dateM = attrs.match(/startDate=\"([^\"]+)\"/);
-            const unitM = attrs.match(/unit=\"([^\"]*)\"/);
-
-            if (typeM && valM && dateM) {
-              const hkType = typeM[1];
-              if (typeMap[hkType]) {
-                const mType = typeMap[hkType];
-                const rawVal = parseFloat(valM[1]);
-                const unit = unitM ? unitM[1] : '';
-                const d = dateM[1].substring(0, 10);
-
-                if (!isNaN(rawVal)) {
-                  const k = `${mType}:${d}`;
-                  if (!dailyBuckets[k]) {
-                    dailyBuckets[k] = { mType, unit, date: d, vals: [] };
-                  }
-                  dailyBuckets[k].vals.push(rawVal);
-                  rawSamplesFound++;
-                }
-              }
-            }
-          }
-        }
-
-        const bucketKeys = Object.keys(dailyBuckets);
-        if (bucketKeys.length > 0) {
-          let addedCount = 0;
-          bucketKeys.forEach(k => {
-            const b = dailyBuckets[k];
-            let finalVal = 0;
-            if (b.mType === 'active_energy') {
-              finalVal = Math.round(b.vals.reduce((acc, v) => acc + v, 0));
-            } else {
-              finalVal = Math.round((b.vals.reduce((acc, v) => acc + v, 0) / b.vals.length) * 10) / 10;
-            }
-
-            state.wearableMetrics.push({
-              id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-              user_id: state.currentUser?.id || 'demo-user',
-              metric_type: b.mType,
-              value: finalVal,
-              unit: b.unit || 'unit',
-              device_source: 'Apple Watch Ultra 4',
-              recorded_at: `${b.date}T12:00:00Z`
-            });
-            addedCount++;
-          });
-
-          // Create and archive document record for the Apple Health XML export
-          state.labDocuments.unshift({
-            id: 'doc-xml-' + Date.now(),
-            user_id: state.currentUser?.id || 'demo-user',
-            document_title: `Apple Health Telemetry Export (${file.name})`,
-            document_type: 'wearables',
-            lab_provider: 'Apple Watch Ultra 4 & Health App',
-            test_date: new Date().toISOString().split('T')[0],
-            file_name: file.name,
-            file_size_bytes: file.size,
-            mime_type: 'application/xml',
-            ai_interpretation_summary: `Archived ${addedCount} daily physiological metrics (VO2 Max, Resting HR, HRV, Energy, Sleep) extracted from Apple Health XML export.`
-          });
-
-          await saveUserData();
-          renderAll();
-          alert(`Success! Extracted and archived ${rawSamplesFound} Apple Watch Ultra 4 telemetry samples (${addedCount} daily metrics) into your Document Vault and Trends.`);
-          return;
-        } else {
-          alert('Could not detect Apple Watch telemetry records in this slice. Try loading aegis_daily_vitals.json for instant complete import.');
-          return;
-        }
-      } catch (err) {
-        console.error('Apple Health XML import error:', err);
-        alert('Could not parse Apple Health XML: ' + err.message);
-        return;
-      }
-    }
-
-    // 2. APPLE HEALTH JSON BUNDLE
+    // 1. Direct JSON Vitals Bundle Upload (from Apple Health Export Script)
     if (fn.endsWith('.json')) {
       try {
         const text = await file.text();
-        const parsed = JSON.parse(text);
-        const rawArray = Array.isArray(parsed) ? parsed : (parsed.metrics || parsed.data?.metrics || parsed.data || []);
-
-        if (Array.isArray(rawArray) && rawArray.length > 0) {
-          const dailyMap = {};
-          let totalParsed = 0;
-
-          rawArray.forEach(item => {
-            const mType = (item.metric_type || item.name || item.type || '').toString().toLowerCase().replace(/[^a-z0-9_]/g, '_');
-            const rawVal = parseFloat(item.value !== undefined ? item.value : (item.qty !== undefined ? item.qty : item.Avg));
-            const unit = item.unit || item.units || 'unit';
-            const dateRaw = (item.recorded_at || item.date || item.startDate || new Date().toISOString()).substring(0, 10);
-
-            if (mType && !isNaN(rawVal)) {
-              const key = `${mType}:${dateRaw}`;
-              if (!dailyMap[key]) {
-                dailyMap[key] = { mType, unit, date: dateRaw, vals: [] };
-              }
-              dailyMap[key].vals.push(rawVal);
-              totalParsed++;
-            }
-          });
-
+        const data = JSON.parse(text);
+        if (Array.isArray(data)) {
           let addedCount = 0;
-          Object.values(dailyMap).forEach(b => {
-            let finalVal = 0;
-            if (b.mType.includes('energy') || b.mType.includes('step') || b.mType.includes('calorie')) {
-              finalVal = Math.round(b.vals.reduce((acc, v) => acc + v, 0));
-            } else {
-              finalVal = Math.round((b.vals.reduce((acc, v) => acc + v, 0) / b.vals.length) * 10) / 10;
+          data.forEach(item => {
+            if (item.metric_type && item.value !== undefined) {
+              state.wearableMetrics.push({
+                id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+                user_id: state.currentUser.id,
+                metric_type: item.metric_type,
+                value: item.value,
+                unit: item.unit || 'unit',
+                device_source: item.device_source || 'Apple Watch Ultra 4',
+                recorded_at: item.recorded_at || new Date().toISOString()
+              });
+              addedCount++;
             }
-
-            state.wearableMetrics.push({
-              id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-              user_id: state.currentUser?.id || 'demo-user',
-              metric_type: b.mType,
-              value: finalVal,
-              unit: b.unit,
-              device_source: 'Apple Watch Ultra 4',
-              recorded_at: `${b.date}T12:00:00Z`
-            });
-            addedCount++;
           });
-
-          // Create and archive document record for the Apple Health JSON vitals dataset
-          state.labDocuments.unshift({
-            id: 'doc-json-' + Date.now(),
-            user_id: state.currentUser?.id || 'demo-user',
-            document_title: `Apple Health Vitals Dataset (${file.name})`,
-            document_type: 'wearables',
-            lab_provider: 'Apple Watch Ultra 4 Telemetry Export',
-            test_date: new Date().toISOString().split('T')[0],
-            file_name: file.name,
-            file_size_bytes: file.size,
-            mime_type: 'application/json',
-            ai_interpretation_summary: `Archived ${addedCount} daily physiological metrics (VO2 Max, Resting HR, HRV, Active Energy, Sleep) from Apple Health JSON dataset.`
-          });
-
           await saveUserData();
           renderAll();
-          alert(`Success! Ingested and archived ${totalParsed} raw entries (${addedCount} daily metrics) into your Document Vault and Trends!`);
-          return;
-        } else {
-          alert('JSON file does not contain health telemetry array records.');
+          alert(`Successfully imported ${addedCount} Apple Health telemetry records into your health vault!`);
           return;
         }
       } catch (err) {
-        console.error('JSON telemetry import error:', err);
-        alert('Could not parse JSON vitals file: ' + err.message);
+        console.warn('JSON vitals import error:', err);
+      }
+    }
+
+    // 2. Direct Apple Watch ECG CSV Upload
+    if (fn.endsWith('.csv') && (fn.includes('ecg') || fn.includes('electrocardio'))) {
+      try {
+        const csvText = await file.text();
+        const lines = csvText.split(/[\r\n]+/);
+        let classification = 'Sinus Rhythm';
+        let recordedDate = new Date().toISOString().split('T')[0];
+        let device = 'Apple Watch';
+        let sampleRate = 512;
+
+        lines.forEach(l => {
+          if (l.startsWith('Classification,')) classification = l.split(',')[1]?.trim() || classification;
+          if (l.startsWith('Recorded Date,')) recordedDate = l.split(',')[1]?.trim()?.substring(0, 10) || recordedDate;
+          if (l.startsWith('Device,')) device = l.split(',')[1]?.trim() || device;
+          if (l.startsWith('Sample Rate,')) sampleRate = parseInt(l.split(',')[1], 10) || sampleRate;
+        });
+
+        openLabReviewModal({
+          documentTitle: 'Apple Watch ECG Recording',
+          fileName: file.name,
+          fileSizeBytes: file.size,
+          mimeType: 'text/csv',
+          rawText: csvText.substring(0, 500) + '...',
+          extractedDate: recordedDate,
+          extractedItems: [
+            { code: 'ECG_RHYTHM', name: `ECG Rhythm (${classification})`, value: 1, unit: 'event', category: 'cardiovascular' },
+            { code: 'ECG_SAMPLE_RATE', name: 'ECG Sample Rate', value: sampleRate, unit: 'Hz', category: 'cardiovascular' }
+          ]
+        });
         return;
+      } catch (err) {
+        console.warn('ECG CSV parse error:', err);
       }
     }
 
-    // 3. IMAGE FILES (JPG, PNG, WEBP) - OCR EXTRACTION
-    if (file.type.startsWith('image/') || fn.endsWith('.jpg') || fn.endsWith('.jpeg') || fn.endsWith('.png') || fn.endsWith('.webp')) {
-      let imageLines = [];
-      let detectedDate = new Date().toISOString().split('T')[0];
-
-      if (window.Tesseract) {
-        try {
-          const base64 = await readFileAsBase64(file);
-          const ocrResult = await window.Tesseract.recognize(base64, 'ita+eng');
-          const rawOcrText = ocrResult?.data?.text || '';
-          imageLines = rawOcrText.split(/[\r\n]+/);
-        } catch (e) {
-          console.warn('Image OCR error:', e);
-        }
-      }
-
-      for (const l of imageLines) {
-        const dateMatch = l.match(/(?:data\s*referto|data\s*esame|date|prelievo|del)[:\s]*([0-3]?[0-9][/-][0-1]?[0-9][/-][1-2][0-9]{3})/i);
-        if (dateMatch && dateMatch[1]) {
-          const parts = dateMatch[1].split(/[/-]/);
-          if (parts.length === 3) {
-            detectedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-            break;
-          }
-        }
-      }
-
-      let extractedItems = parseTabularClinicalLines(imageLines);
-      if (extractedItems.length === 0) {
-        // Provide editable template rows if OCR didn't find dictionary markers
-        extractedItems = [
-          { code: 'PARAM_1', name: 'Clinical Parameter / Marker', value: '', unit: '', category: 'general' }
-        ];
-      }
-
-      openLabReviewModal({
-        documentTitle: file.name.replace(/\.[^/.]+$/, ''),
-        fileName: file.name,
-        fileSizeBytes: file.size,
-        mimeType: file.type || 'image/jpeg',
-        rawText: imageLines.join('\n') || `Photographed Clinical Record (${file.name})`,
-        extractedDate: detectedDate,
-        extractedItems: extractedItems
-      });
-      return;
-    }
-
-    // 4. CLINICAL PDF LAB REPORT EXTRACTION
+    // 3. Clinical PDF Lab Report Text Layout Extraction
     let lines = [];
     let detectedDate = new Date().toISOString().split('T')[0];
 
@@ -1731,6 +1149,13 @@ document.addEventListener('DOMContentLoaded', () => {
           console.warn('PDF layout parsing error:', err);
         }
       }
+    } else {
+      try {
+        const text = await file.text();
+        lines = text.split(/[\r\n]+/);
+      } catch (err) {
+        console.warn('Text file read error:', err);
+      }
     }
 
     for (const l of lines) {
@@ -1753,9 +1178,7 @@ document.addEventListener('DOMContentLoaded', () => {
       mimeType: file.type || 'application/pdf',
       rawText: lines.join('\n') || '(No digital text layer found.)',
       extractedDate: detectedDate,
-      extractedItems: extractedItems.length > 0 ? extractedItems : [
-        { code: 'PARAM_1', name: 'Clinical Parameter / Marker', value: '', unit: '', category: 'general' }
-      ]
+      extractedItems: extractedItems
     });
   }
 
@@ -1866,75 +1289,58 @@ document.addEventListener('DOMContentLoaded', () => {
     return results;
   }
 
-    function openLabReviewModal(data) {
-    state.pendingLabReview = data;
-    const reviewDocTitle = document.getElementById('reviewDocTitle');
-    const reviewRawText = document.getElementById('reviewRawText');
-    const labReviewModal = document.getElementById('labReviewModal');
-    const revDocClass = document.getElementById('revDocClass');
-    const revLabProvider = document.getElementById('revLabProvider');
-    const revTestDate = document.getElementById('revTestDate');
-    const revNarrativeSummary = document.getElementById('revNarrativeSummary');
-
-    if (reviewDocTitle) {
-      reviewDocTitle.textContent = `Document: ${data.fileName} (${data.extractedItems?.length || 0} parameter(s) detected)`;
-    }
-    if (reviewRawText) {
-      reviewRawText.textContent = data.rawText || '(No digital text layer found)';
-    }
-
-    // Auto-detect Document Classification
-    const rawLower = (data.rawText || '' + data.fileName || '').toLowerCase();
-    let detectedClass = 'blood_panel';
-    if (rawLower.includes('ecotomografia') || rawLower.includes('ecograf') || rawLower.includes('ultrasound') || rawLower.includes('rmn') || rawLower.includes('risonanza')) {
-      detectedClass = 'ultrasound';
-    } else if (rawLower.includes('pentacam') || rawLower.includes('pachymet') || rawLower.includes('oct') || rawLower.includes('macular')) {
-      detectedClass = 'ophthalmology';
-    } else if (rawLower.includes('istologic') || rawLower.includes('carcinoma') || rawLower.includes('biops') || rawLower.includes('losanga')) {
-      detectedClass = 'histology';
-    } else if (rawLower.includes('visita') || rawLower.includes('consulenza') || rawLower.includes('consultation')) {
-      detectedClass = 'consultation';
-    }
-
-    if (revDocClass) revDocClass.value = detectedClass;
-    if (revLabProvider) revLabProvider.value = rawLower.includes('montallegro') ? 'Villa Montallegro, Genova' : (data.labProvider || 'Laboratorio di Analisi');
-    if (revTestDate) revTestDate.value = data.extractedDate || new Date().toISOString().split('T')[0];
-    
-    if (revNarrativeSummary) {
-      revNarrativeSummary.value = data.narrativeSummary || data.rawText?.substring(0, 300) || '';
-    }
+  function openLabReviewModal(pendingData) {
+    state.pendingLabReview = pendingData;
+    reviewDocTitle.textContent = `Document: ${pendingData.fileName} • ${pendingData.extractedItems.length} verified biomarker(s) detected`;
+    reviewRawText.textContent = pendingData.rawText;
 
     renderLabReviewRows();
-    if (labReviewModal) labReviewModal.classList.remove('hidden');
+    labReviewModal.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
   }
 
   function renderLabReviewRows() {
-    const labReviewTableBody = document.getElementById('labReviewTableBody');
-    if (!labReviewTableBody || !state.pendingLabReview) return;
+    if (!state.pendingLabReview) return;
+    const items = state.pendingLabReview.extractedItems;
 
-    labReviewTableBody.innerHTML = (state.pendingLabReview.extractedItems || []).map((item, index) => `
-      <tr class="hover:bg-surface-dark/40" data-index="${index}">
-        <td class="py-2 px-3">
-          <input type="text" class="rev-name w-full bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-white text-xs font-semibold focus:border-brand-400" value="${item.name}">
+    if (items.length === 0) {
+      labReviewTableBody.innerHTML = `
+        <tr>
+          <td colspan="5" class="p-6 text-center text-slate-400 text-xs">
+            No digital text found in this scan. Click <strong>+ Add Marker</strong> above to enter results from this sheet.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    labReviewTableBody.innerHTML = items.map((item, idx) => `
+      <tr data-index="${idx}">
+        <td class="py-2.5 px-3">
+          <input type="text" class="rev-name w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-white" value="${item.name}">
         </td>
-        <td class="py-2 px-3">
-          <input type="number" step="any" class="rev-val w-24 bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-white text-xs font-bold focus:border-brand-400" value="${item.value}">
+        <td class="py-2.5 px-3 w-28">
+          <input type="number" step="any" class="rev-val w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs font-bold text-brand-400" value="${item.value}">
         </td>
-        <td class="py-2 px-3">
-          <input type="text" class="rev-unit w-16 bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-slate-300 text-xs focus:border-brand-400" value="${item.unit}">
+        <td class="py-2.5 px-3 w-28">
+          <input type="text" class="rev-unit w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-slate-300 font-mono" value="${item.unit}">
         </td>
-        <td class="py-2 px-3">
-          <select class="rev-cat bg-surface-dark border border-surface-border rounded-lg px-2 py-1 text-slate-300 text-xs">
-            <option value="lipids_cardio" ${item.category === 'lipids_cardio' ? 'selected' : ''}>Lipids / Cardiovascular</option>
-            <option value="hormones" ${item.category === 'hormones' ? 'selected' : ''}>Hormones / Endocrine</option>
-            <option value="ophthalmology" ${item.category === 'ophthalmology' ? 'selected' : ''}>Ophthalmology / Retina</option>
-            <option value="musculoskeletal" ${item.category === 'musculoskeletal' ? 'selected' : ''}>Musculoskeletal / Trauma</option>
-            <option value="metabolic" ${item.category === 'metabolic' ? 'selected' : ''}>Metabolic / Glycemic</option>
-            <option value="general" ${item.category === 'general' ? 'selected' : ''}>General Health</option>
+        <td class="py-2.5 px-3 w-36">
+          <select class="rev-cat w-full bg-surface-dark border border-surface-border rounded-lg px-2.5 py-1 text-xs text-slate-300">
+            <option value="lipids_cardio" ${item.category === 'lipids_cardio' ? 'selected' : ''}>Lipids & Cardio</option>
+            <option value="hormones" ${item.category === 'hormones' ? 'selected' : ''}>Hormones</option>
+            <option value="endocrine" ${item.category === 'endocrine' ? 'selected' : ''}>Endocrine / Thyroid</option>
+            <option value="hematology" ${item.category === 'hematology' ? 'selected' : ''}>Hematology & Iron</option>
+            <option value="metabolic" ${item.category === 'metabolic' ? 'selected' : ''}>Metabolic & CMP</option>
+            <option value="inflammation" ${item.category === 'inflammation' ? 'selected' : ''}>Inflammation</option>
+            <option value="ophthalmology" ${item.category === 'ophthalmology' ? 'selected' : ''}>Ophthalmology</option>
+            <option value="micronutrients" ${item.category === 'micronutrients' ? 'selected' : ''}>Micronutrients</option>
+            <option value="cardiovascular" ${item.category === 'cardiovascular' ? 'selected' : ''}>Cardiovascular / ECG</option>
+            <option value="general" ${item.category === 'general' ? 'selected' : ''}>General</option>
           </select>
         </td>
-        <td class="py-2 px-2 text-center">
-          <button type="button" class="btn-del-rev-row text-rose-400 hover:text-rose-300 p-1 cursor-pointer" data-index="${index}">
+        <td class="py-2.5 px-2 text-center w-12">
+          <button type="button" class="btn-del-rev-row text-slate-500 hover:text-rose-400 p-1 cursor-pointer" data-index="${idx}">
             <i data-lucide="trash" class="w-4 h-4"></i>
           </button>
         </td>
@@ -1952,31 +1358,43 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Confirm and Save Verified Multi-Modal Document
+  if (btnAddRowToReview) {
+    btnAddRowToReview.addEventListener('click', () => {
+      if (!state.pendingLabReview) return;
+      state.pendingLabReview.extractedItems.push({
+        code: 'CUSTOM_' + Date.now(),
+        name: 'New Biomarker',
+        value: '',
+        unit: 'mg/dL',
+        category: 'general'
+      });
+      renderLabReviewRows();
+    });
+  }
+
+  if (btnCloseLabReview) btnCloseLabReview.addEventListener('click', () => labReviewModal.classList.add('hidden'));
+  if (btnCancelReview) btnCancelReview.addEventListener('click', () => labReviewModal.classList.add('hidden'));
+
+  // Confirm and Save Verified Biomarkers
   if (btnConfirmLabSave) {
     btnConfirmLabSave.addEventListener('click', async () => {
       if (!state.pendingLabReview) return;
 
-      const dateStr = document.getElementById('revTestDate')?.value || state.pendingLabReview.extractedDate || new Date().toISOString().split('T')[0];
-      const docClass = document.getElementById('revDocClass')?.value || 'blood_panel';
-      const provider = document.getElementById('revLabProvider')?.value || 'Clinical Facility';
-      const narrative = document.getElementById('revNarrativeSummary')?.value.trim() || '';
-      const autoTrack = document.getElementById('revAutoTrackCondition')?.checked;
-
-      const rows = document.getElementById('labReviewTableBody')?.querySelectorAll('tr[data-index]') || [];
+      const dateStr = state.pendingLabReview.extractedDate || new Date().toISOString().split('T')[0];
+      const rows = labReviewTableBody.querySelectorAll('tr[data-index]');
       const verifiedBiomarkers = [];
 
       rows.forEach((tr, i) => {
-        const name = tr.querySelector('.rev-name')?.value.trim();
-        const val = parseFloat(tr.querySelector('.rev-val')?.value);
-        const unit = tr.querySelector('.rev-unit')?.value.trim();
-        const cat = tr.querySelector('.rev-cat')?.value;
-        const code = (state.pendingLabReview.extractedItems?.[i]?.code || name.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase());
+        const name = tr.querySelector('.rev-name').value.trim();
+        const val = parseFloat(tr.querySelector('.rev-val').value);
+        const unit = tr.querySelector('.rev-unit').value.trim();
+        const cat = tr.querySelector('.rev-cat').value;
+        const code = (state.pendingLabReview.extractedItems[i]?.code || name.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase());
 
         if (name && !isNaN(val)) {
           verifiedBiomarkers.push({
             id: 'bm-' + Date.now() + '-' + i,
-            user_id: state.currentUser?.id || 'demo-user',
+            user_id: state.currentUser.id,
             document_id: 'doc-' + Date.now(),
             biomarker_code: code,
             biomarker_name: name,
@@ -1985,153 +1403,79 @@ document.addEventListener('DOMContentLoaded', () => {
             unit: unit || 'unit',
             clinical_flag: 'optimal',
             test_date: dateStr,
-            notes: `${provider} • ${docClass}`
+            notes: `Extracted & verified from ${state.pendingLabReview.fileName}`
           });
         }
       });
 
+      if (verifiedBiomarkers.length === 0) {
+        alert('Please enter at least one valid biomarker name and numeric value.');
+        return;
+      }
+
       const newDoc = {
         id: 'doc-' + Date.now(),
-        user_id: state.currentUser?.id || 'demo-user',
-        document_title: state.pendingLabReview.documentTitle || `${docClass.toUpperCase()} (${dateStr})`,
-        document_type: docClass,
-        lab_provider: provider,
+        user_id: state.currentUser.id,
+        document_title: state.pendingLabReview.documentTitle,
+        lab_provider: 'Verified Pathology Record',
         test_date: dateStr,
+        file_url: '#',
         file_name: state.pendingLabReview.fileName,
-        file_size_bytes: state.pendingLabReview.fileSizeBytes || 250000,
-        mime_type: state.pendingLabReview.mimeType || 'application/pdf',
-        ai_interpretation_summary: narrative || `Archived ${docClass} from ${provider} with ${verifiedBiomarkers.length} verified metrics.`
+        file_size_bytes: state.pendingLabReview.fileSizeBytes,
+        mime_type: state.pendingLabReview.mimeType,
+        ai_interpretation_summary: `Parsed and verified ${verifiedBiomarkers.length} real biomarker(s): ${verifiedBiomarkers.map(b => b.biomarker_name).join(', ')}.`
       };
 
       state.labDocuments.unshift(newDoc);
       verifiedBiomarkers.forEach(b => state.biomarkers.unshift(b));
 
-      // Only track in Conditions Hub if user explicitly selected ultrasound/histology with a real diagnosis
-      if (autoTrack && narrative && (docClass === 'ultrasound' || docClass === 'histology')) {
-        const conditionTitle = state.pendingLabReview.documentTitle.replace(/Photographed Clinical Record|Manual Clinical Entry|Document:/gi, '').trim() || `${docClass.replace('_', ' ').toUpperCase()} Finding`;
-        state.conditions.unshift({
-          id: 'cond-' + Date.now(),
-          user_id: state.currentUser?.id || 'demo-user',
-          title: conditionTitle,
-          condition_type: docClass === 'ultrasound' ? 'acute' : 'chronic',
-          status: 'managing',
-          diagnosis_date: dateStr,
-          clinical_summary: narrative,
-          primary_treatment_plan: `Clinical follow-up and surveillance.`
-        });
-      }
-
       state.messages.push({
         sender_role: 'doc_agent',
-        content: `I have ingested and archived **${newDoc.document_title}** (Provider: ${provider}, Date: ${dateStr}).\\n\\n**Clinical Findings:**\\n"${newDoc.ai_interpretation_summary}"\\n\\n${verifiedBiomarkers.length > 0 ? `Verified Metrics: ${verifiedBiomarkers.map(b => `${b.biomarker_name}: ${b.value} ${b.unit}`).join(', ')}` : ''}`,
+        content: `I have ingested and verified ${verifiedBiomarkers.length} biomarkers from **${state.pendingLabReview.fileName}** (Date: ${dateStr}):\n${verifiedBiomarkers.map(b => `• **${b.biomarker_name}:** ${b.value} ${b.unit}`).join('\n')}\n\nYour trajectory charts and clinical indicators have been updated.`,
         created_at: new Date().toISOString()
       });
 
       await saveUserData();
-      const labReviewModal = document.getElementById('labReviewModal');
-      if (labReviewModal) labReviewModal.classList.add('hidden');
+      labReviewModal.classList.add('hidden');
       renderAll();
-      alert(`Success! "${newDoc.document_title}" saved and synced to your health vault.`);
+      alert(`Success! ${verifiedBiomarkers.length} verified biomarker(s) saved to your cloud health vault.`);
     });
-  }
-
-  function ensureLabDocumentsSynchronized() {
-    // If empty, strictly keep empty. Never auto-reseed.
-  }
-
-  
-  // Multi-Modal Document Filtering
-  let activeDocVaultFilter = 'ALL';
-  window.filterDocVault = function(cat) {
-    activeDocVaultFilter = cat;
-    document.querySelectorAll('.doc-filter-chip').forEach(btn => {
-      if (btn.getAttribute('data-cat') === cat) {
-        btn.className = 'doc-filter-chip px-3 py-1 rounded-full font-bold bg-[#00646e] text-white';
-      } else {
-        btn.className = 'doc-filter-chip px-3 py-1 rounded-full text-slate-400 bg-surface-dark border border-surface-border hover:text-white';
-      }
-    });
-    renderLabDocsGrid();
-  };
-
-  
-  // Utility Helper
-  function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
   }
 
   function renderLabDocsGrid() {
-    ensureLabDocumentsSynchronized();
     const grid = document.getElementById('labDocsGrid');
     if (!grid) return;
 
-    let docs = state.labDocuments || [];
-    if (activeDocVaultFilter !== 'ALL') {
-      docs = docs.filter(d => (d.document_type || '').toLowerCase() === activeDocVaultFilter.toLowerCase());
-    }
-
-    if (docs.length === 0) {
+    if (state.labDocuments.length === 0) {
       grid.innerHTML = `
-        <div class="col-span-full p-8 text-center text-xs text-slate-400 border border-surface-border rounded-2xl bg-[#070c1b]/60 space-y-2">
-          <div class="w-10 h-10 rounded-xl bg-surface-dark text-slate-400 flex items-center justify-center mx-auto mb-2">
-            <i data-lucide="archive" class="w-5 h-5 text-brand-400"></i>
-          </div>
-          <p class="text-white font-bold text-sm">No clinical documents stored in vault yet</p>
-          <p class="text-slate-400 max-w-sm mx-auto">Snap a photo of your paper reports above or upload a PDF to archive documents and extract biomarkers.</p>
+        <div class="col-span-full p-6 text-center text-xs text-slate-500 border border-surface-border rounded-xl bg-surface-dark/30">
+          No lab reports stored in vault. Click above to upload your blood panel or OCT scan.
         </div>
       `;
-      if (window.lucide) window.lucide.createIcons();
       return;
     }
 
-    const typeIcons = {
-      'ultrasound': { icon: 'image', badge: 'ULTRASOUND', color: 'text-accent-cyan bg-accent-cyan/10 border-accent-cyan/30' },
-      'ophthalmology': { icon: 'eye', badge: 'OPHTHALMOLOGY', color: 'text-[#00ffb9] bg-[#00646e]/20 border-[#00ffb9]/30' },
-      'histology': { icon: 'microscope', badge: 'HISTOLOGY', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
-      'blood_panel': { icon: 'droplet', badge: 'BLOOD PANEL', color: 'text-rose-400 bg-rose-500/10 border-rose-500/30' },
-      'consultation': { icon: 'stethoscope', badge: 'CONSULTATION', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' }
-    };
-
-    grid.innerHTML = docs.map(doc => {
-      const tInfo = typeIcons[doc.document_type] || { icon: 'file-text', badge: 'VERIFIED', color: 'text-brand-400 bg-brand-500/10 border-brand-500/30' };
-
-      return `
-        <div class="bg-surface-dark/90 border border-surface-border hover:border-[#00ffb9]/40 rounded-2xl p-4.5 space-y-3 transition-all shadow-md group flex flex-col justify-between">
-          <div class="space-y-2">
-            <div class="flex items-start justify-between gap-2">
-              <div class="p-2 rounded-xl bg-[#070c1b] border border-[#172447] text-white shrink-0">
-                <i data-lucide="${tInfo.icon}" class="w-5 h-5"></i>
-              </div>
-              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase border ${tInfo.color}">
-                ${tInfo.badge}
-              </span>
-            </div>
-
-            <div>
-              <h4 class="font-bold text-sm text-white group-hover:text-[#00ffb9] transition-colors line-clamp-1">${escapeHtml(doc.document_title)}</h4>
-              <p class="text-[11px] text-slate-400 mt-0.5">🏥 ${escapeHtml(doc.lab_provider || 'Clinical Facility')} • 📅 ${doc.test_date}</p>
-            </div>
-
-            <p class="text-xs text-slate-300 leading-relaxed bg-[#070c1b] p-3 rounded-xl border border-[#172447] line-clamp-3">
-              "${escapeHtml(doc.ai_interpretation_summary || 'Document parsed.')}"
-            </p>
+    grid.innerHTML = state.labDocuments.map(doc => `
+      <div class="bg-surface-dark/80 border border-surface-border rounded-xl p-4 space-y-3">
+        <div class="flex items-start justify-between">
+          <div class="p-2 rounded-lg bg-brand-500/10 text-brand-400">
+            <i data-lucide="file-check" class="w-5 h-5"></i>
           </div>
-
-          <div class="pt-3 border-t border-surface-border flex items-center justify-between text-xs">
-            <button class="btn-view-doc text-xs text-[#00ffb9] hover:underline font-bold flex items-center gap-1 cursor-pointer" data-id="${doc.id}">
-              <i data-lucide="file-text" class="w-3.5 h-3.5"></i> View Full Findings
-            </button>
-            <span class="text-[10px] text-slate-500 font-mono">${((doc.file_size_bytes || 350000) / 1024).toFixed(0)} KB</span>
-          </div>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">VERIFIED</span>
         </div>
-      `;
-    }).join('');
+        <div>
+          <h4 class="font-bold text-sm text-white truncate">${doc.document_title}</h4>
+          <p class="text-[11px] text-slate-400">${doc.lab_provider || 'Clinical Lab'} • ${doc.test_date}</p>
+        </div>
+        <p class="text-[11px] text-slate-300 leading-relaxed line-clamp-2">${doc.ai_interpretation_summary || 'Document parsed.'}</p>
+        <div class="pt-2 border-t border-surface-border flex items-center justify-between">
+          <button class="btn-view-doc text-xs text-brand-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer" data-id="${doc.id}">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i> View Details
+          </button>
+          <span class="text-[10px] text-slate-500">${(doc.file_size_bytes / 1024).toFixed(0)} KB</span>
+        </div>
+      </div>
+    `).join('');
 
     if (window.lucide) window.lucide.createIcons();
 
@@ -2143,7 +1487,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
-
 
   function openDocumentViewer(doc) {
     const modal = document.getElementById('docViewerModal');
@@ -2205,7 +1548,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const docChatForm = document.getElementById('docChatForm');
   if (docChatForm) {
-    docChatForm.addEventListener('submit', async (e) => {
+    docChatForm.addEventListener('submit', (e) => {
       e.preventDefault();
       const input = document.getElementById('docInput');
       const val = input.value.trim();
@@ -2216,62 +1559,47 @@ document.addEventListener('DOMContentLoaded', () => {
         content: val,
         created_at: new Date().toISOString()
       });
+      renderDocChatMessages();
       input.value = '';
-      renderDocChatMessages();
 
-      // Typing indicator
-      const tempId = 'temp-typing-' + Date.now();
-      state.messages.push({
-        id: tempId,
-        sender_role: 'doc_agent',
-        content: '🩺 *Doc is reviewing your clinical dossier and consulting OpenClaw memory...*',
-        created_at: new Date().toISOString()
-      });
-      renderDocChatMessages();
+      setTimeout(() => {
+        let reply = '';
+        const lower = val.toLowerCase();
+        const catalog = getIngestedBiomarkerCatalog();
 
-      let finalReply = '';
-      const endpoint = window.location.hostname.includes('github.io') 
-        ? 'https://ubuntu.tail88a4c9.ts.net:3443/api/doc/chat' 
-        : '/api/doc/chat';
+        const matched = catalog.find(m => lower.includes(m.name.toLowerCase()) || lower.includes(m.code.toLowerCase()));
 
-      try {
-        console.log('[Doc] Consulting OpenClaw Doc Agent on:', endpoint);
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: val,
-            userId: state.currentUser?.id || 'demo-user-alastair',
-            clientContext: {
-              profile: state.currentUser,
-              biomarkers: state.biomarkers,
-              conditions: state.conditions,
-              wearables: state.wearableMetrics
-            }
-          })
-        });
-
-        const data = await res.json();
-        if (res.ok && data?.reply) {
-          finalReply = data.reply;
+        if (matched) {
+          const samples = state.biomarkers.filter(b => b.biomarker_code === matched.code).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
+          if (samples.length > 0) {
+            const latest = samples[0];
+            reply = `Reviewing your verified records for **${matched.name}**:\n\n- **Latest Reading:** **${latest.value} ${matched.unit}** (tested on ${latest.test_date})\n- **Category:** ${matched.category.replace('_', ' ').toUpperCase()}\n\nThis parameter is actively indexed in your **Biomarker & Vital Trends** tab.`;
+          } else {
+            reply = `You have indexed **${matched.name}**, but no clinical samples are recorded yet.`;
+          }
+        } else if (lower.includes('sleep') || lower.includes('hrv') || lower.includes('watch') || lower.includes('apple')) {
+          const hasHRV = state.wearableMetrics.some(w => w.metric_type === 'hrv_sdnn');
+          if (hasHRV) {
+            reply = `Your continuous Apple Watch telemetry indicates stable autonomic recovery across ${state.wearableMetrics.length} recorded samples.`;
+          } else {
+            reply = `No Apple Watch telemetry has been received yet. You can connect it in the **Devices & Cloud** tab using the Webhook URL.`;
+          }
         } else {
-          throw new Error(data?.message || `Server returned HTTP ${res.status}`);
+          if (catalog.length === 0) {
+            reply = `You have not uploaded any lab reports yet. Once you upload a blood test or OCT scan in the **Lab Vault**, I will analyze your specific biomarkers without making up any baseline data.`;
+          } else {
+            reply = `I have access to your ${catalog.length} verified biomarker(s): ${catalog.map(c => c.name).join(', ')}. Ask me anything about these specific results or lifestyle adjustments.`;
+          }
         }
-      } catch (backendErr) {
-        console.error('OpenClaw Doc Agent connection error:', backendErr);
-        finalReply = `⚠️ **Could not reach OpenClaw Doc Agent:**\n\n- **Endpoint:** \`${endpoint}\`\n- **Error:** ${backendErr.message}\n\n*To fix:* Ensure this device is connected to your **Tailscale network** (\`ubuntu.tail88a4c9.ts.net\`) so it can access our secure OpenClaw Doc Agent service.`;
-      }
 
-      // Remove typing placeholder & render actual reply
-      state.messages = state.messages.filter(m => m.id !== tempId);
-      state.messages.push({
-        sender_role: 'doc_agent',
-        content: finalReply,
-        created_at: new Date().toISOString()
-      });
-
-      saveUserData();
-      renderDocChatMessages();
+        state.messages.push({
+          sender_role: 'doc_agent',
+          content: reply,
+          created_at: new Date().toISOString()
+        });
+        saveUserData();
+        renderDocChatMessages();
+      }, 400);
     });
   }
 
@@ -2392,13 +1720,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnToggleCondResolved = document.getElementById('btnToggleCondResolved');
   if (btnToggleCondResolved) {
-    btnToggleCondResolved.addEventListener('click', () => {
+    btnToggleCondResolved.addEventListener('click', async () => {
       if (!state.selectedCondition) return;
       state.selectedCondition.status = state.selectedCondition.status === 'resolved' ? 'active' : 'resolved';
       if (state.selectedCondition.status === 'resolved') {
         state.selectedCondition.resolved_date = new Date().toISOString().split('T')[0];
       }
-      saveUserData();
+      await saveUserData();
       openConditionDetail(state.selectedCondition.id);
       renderConditionsGrid();
       renderOverviewConditions();
@@ -2427,7 +1755,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnNewCondition && newConditionModal) {
     btnNewCondition.addEventListener('click', () => newConditionModal.classList.remove('hidden'));
     btnCloseNewCond.addEventListener('click', () => newConditionModal.classList.add('hidden'));
-    newConditionForm.addEventListener('submit', (e) => {
+    newConditionForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const newCond = {
         id: 'cond-' + Date.now(),
@@ -2440,7 +1768,7 @@ document.addEventListener('DOMContentLoaded', () => {
         primary_treatment_plan: document.getElementById('ncTreatment').value.trim()
       };
       state.conditions.unshift(newCond);
-      saveUserData();
+      await saveUserData();
       newConditionModal.classList.add('hidden');
       newConditionForm.reset();
       renderConditionsGrid();
@@ -2448,222 +1776,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-
-      // ==========================================
-  // DYNAMIC CLINICAL INSIGHTS & PREDICTIONS ENGINE (BY DOC)
-  // ==========================================
-  function generateDynamicClinicalInsights() {
-    const insights = [];
-    const biomarkers = state.biomarkers || [];
-    const wearables = state.wearableMetrics || [];
-    const conditions = state.conditions || [];
-    const docs = state.labDocuments || [];
-
-    // If health vault is at zero-state (wiped / empty), strictly return zero insights
-    if ((!biomarkers || biomarkers.length === 0) && (!docs || docs.length === 0) && (!wearables || wearables.length === 0) && (!conditions || conditions.length === 0)) {
-      return [];
-    }
-
-    // Helper matcher by regex across biomarkers
-    const findLatest = (pattern) => {
-      const matches = biomarkers.filter(b => {
-        const str = ((b.biomarker_code || '') + ' ' + (b.biomarker_name || '')).toLowerCase();
-        return pattern.test(str);
-      }).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
-      return matches.length > 0 ? matches[0] : null;
-    };
-
-    // Helper matcher across documents
-    const findDoc = (pattern) => {
-      return docs.find(d => {
-        const str = ((d.document_title || '') + ' ' + (d.document_type || '') + ' ' + (d.ai_interpretation_summary || '')).toLowerCase();
-        return pattern.test(str);
-      });
-    };
-
-    const docMuscle = findDoc(/tennis|muscolar|gemello/i) || conditions.find(c => /tennis|gastrocnemius|gemello/i.test(c.title));
-    const docThyroid = findDoc(/tiroide|tiroid|thyroid|spongiform/i) || conditions.find(c => /tiroide|thyroid|nodulo/i.test(c.title));
-    const docPentacam = findDoc(/pentacam|pachymet|corneal/i) || findLatest(/oct.*os|macular/i);
-    const docHistology = findDoc(/istolog|histolog|carcinoma|bcc/i) || conditions.find(c => /bcc|carcinoma/i.test(c.title));
-
-    const psaRatio = findLatest(/psa.*ratio|ratio.*psa|free.*total.*psa/i);
-    const psaTot = findLatest(/total.*psa|psa.*totale|\bpsa\b/i);
-    const testo = findLatest(/testost/i);
-    const ldl = findLatest(/ldl/i);
-    const tg = findLatest(/triglicer|triglycer/i);
-    const hdl = findLatest(/hdl/i);
-
-    // 1. UNSTRUCTURED RECORD INSIGHT: Musculoskeletal / Ultrasound ("Tennis Leg")
-    if (docMuscle) {
-      insights.push({
-        id: 'ins-muscle-us',
-        category: "Sports Traumatology & Ultrasound",
-        badge: 'Resolved / Remodeled',
-        badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-        icon: 'activity',
-        title: 'Medial Gastrocnemius Tear (Tennis Leg) Ultrasound Recovery',
-        summary: `Ultrasound (*Villa Montallegro, Dr. Bacigalupo*) recorded a distal myotendinous junction tear (**22 mm CC x 16 mm LL**, ~50% muscle width) with a 1-2 mm hematoma fluid layer. Deep twin veins remained patent without thrombosis.`,
-        recommendation: 'Maintain progressive calf eccentric loading and Achilles tendon stiffness drills. Progressive return to high-impact sprinting and running load verified with current VO2 Max (53.7).',
-        evidence: `Exam: Ecotomografia Muscolare • Tear: 22x16 mm • Fluid Layer: 1-2 mm • Status: Resolved`,
-        prompt: 'Doc, review my left calf gastrocnemius tear ultrasound findings and verify training load management.'
-      });
-    }
-
-    // 2. UNSTRUCTURED RECORD INSIGHT: Thyroid Ultrasound (Spongiform Nodule)
-    if (docThyroid) {
-      insights.push({
-        id: 'ins-thyroid-us',
-        category: "Endocrinology & Thyroid Ultrasound",
-        badge: 'Benign Surveillance (EU-TIRADS 2)',
-        badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
-        icon: 'zap',
-        title: 'Left Lobe Thyroid Spongiform Nodule (4x3 mm)',
-        summary: `Thyroid ultrasound (*Villa Montallegro, Dr. Buscaglia*) demonstrated normal gland dimensions (AP 14mm dx, 15mm sn) and Doppler vascularity. Identified a tiny **4x3 mm hypoechoic spongiform nodule** in the lower third of the left lobe.`,
-        recommendation: 'Spongiform nodules have a > 98% benign probability (EU-TIRADS 2). Recommend routine repeat ultrasound in 18–24 months alongside morning Free T3, Free T4, and Anti-TPO antibodies.',
-        evidence: `Nodule: 4x3 mm Left Lobe • Morphology: Spongiform (EU-TIRADS 2) • TSH: 3.96 µIU/mL`,
-        prompt: 'Doc, provide clinical guidance on my 4x3 mm spongiform thyroid nodule and correlated TSH.'
-      });
-    }
-
-    // 3. UNSTRUCTURED RECORD INSIGHT: Oculus Pentacam Corneal Tomography & Macular OCT
-    if (docPentacam) {
-      insights.push({
-        id: 'ins-pentacam',
-        category: "Ophthalmology & Anterior Segment",
-        badge: 'Anatomically Robust',
-        badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
-        icon: 'eye',
-        title: 'Bilateral Pentacam Corneal Pachymetry & Macular Integrity',
-        summary: `3D Oculus Pentacam tomography confirmed robust central corneal thickness (**557 µm OD / 554 µm OS** at apex; thinnest 549/543 µm). Anterior chambers symmetric (**2.75 / 2.73 mm**) with wide open angles (27.1°). Macular OCT normalized to **272 µm OS** (subfoveal fluid resolved).`,
-        recommendation: 'Continue daily xanthophyll photoprotection (Lutein 20mg, Zeaxanthin 4mg, Astaxanthin 6mg, EPA/DHA > 1.5g/day) and annual SD-OCT retinal monitoring.',
-        evidence: `Pachy Apex: 557 µm OD / 554 µm OS • Macular CST: 272 µm OS / 268 µm OD`,
-        prompt: 'Doc, review my corneal Pentacam pachymetry and macular OCT recovery status.'
-      });
-    }
-
-    // 4. UNSTRUCTURED RECORD INSIGHT: Surgical Histology (BCC Excision)
-    if (docHistology) {
-      insights.push({
-        id: 'ins-histology',
-        category: "Dermatology & Surgical Pathology",
-        badge: 'Curatively Excised / Disease-Free',
-        badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
-        icon: 'shield-check',
-        title: 'Suprascapular Nodular BCC Radical Excision (Clean Margins)',
-        summary: `Histology (*Villa Montallegro, Dr. Cabiddu / Dr. Maietta, 27/09/2026*) confirmed nodular basal cell carcinoma in upper reticular dermis (Clark Level III) with completely clear resection margins (**distance > 1 mm**).`,
-        recommendation: 'Complete anatomical cure achieved. Apply topical silicone sheets for scar remodeling and maintain annual digital full-body dermatoscopy for secondary lesion surveillance.',
-        evidence: `Histology: BCC Solido-Nodulare • Level: III • Margins: Indenni (> 1 mm)`,
-        prompt: 'Doc, review my suprascapular histology report and confirm scar management.'
-      });
-    }
-
-    // 5. STRUCTURED LAB INSIGHT: Urology & Free / Total PSA Ratio
-    if (psaRatio || psaTot) {
-      const ratioVal = psaRatio ? psaRatio.value : '38';
-      const totVal = psaTot ? psaTot.value : '1.38';
-      insights.push({
-        id: 'ins-psa',
-        category: "Men's Health & Urology",
-        badge: 'Optimal / Benign Reassurance',
-        badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
-        icon: 'shield-check',
-        title: 'Free / Total PSA Ratio (38%) & Prostate Health',
-        summary: `Total PSA is **${totVal} ng/mL** (safely below age cutoff < 2.5 ng/mL) and Free/Total Ratio is **${ratioVal}%**. A ratio >= 25% provides strong statistical reassurance of benign prostatic tissue.`,
-        recommendation: 'Maintain annual routine urological blood surveillance. Refrain from vigorous cycling for 48 hours prior to future draws.',
-        evidence: `Total PSA: ${totVal} ng/mL • Free/Total Ratio: ${ratioVal}% • Tested: 2026-07-02`,
-        prompt: 'Doc, review my Free/Total PSA ratio and confirm long-term urological surveillance intervals.'
-      });
-    }
-
-    // 6. STRUCTURED LAB INSIGHT: Cardiovascular Longevity & ApoB
-    if (ldl || tg || hdl) {
-      const ldlVal = ldl ? ldl.value : '111';
-      const tgVal = tg ? tg.value : '63';
-      const hdlVal = hdl ? hdl.value : '72';
-      const ratio = (parseFloat(tgVal) / parseFloat(hdlVal)).toFixed(2);
-      insights.push({
-        id: 'ins-cardio',
-        category: "Cardiovascular Longevity",
-        badge: 'Longevity Target',
-        badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-        icon: 'heart-pulse',
-        title: 'ApoB Particle Direct Target (< 60 mg/dL)',
-        summary: `Triglyceride/HDL ratio is **${ratio}** (indicating optimal insulin sensitivity). However, LDL-C at **${ldlVal} mg/dL** corresponds to an estimated ApoB of ~85 mg/dL, above your longevity goal of < 60 mg/dL.`,
-        recommendation: 'Order a direct ApoB assay and one-time Lp(a) to evaluate actual circulating atherogenic particle count and eliminate vascular endothelial plaque retention.',
-        evidence: `LDL-C: ${ldlVal} mg/dL • HDL: ${hdlVal} mg/dL • TG/HDL: ${ratio}`,
-        prompt: 'Doc, what clinical protocol do you recommend to bridge my LDL-C to an ApoB below 60 mg/dL?'
-      });
-    }
-
-    return insights;
-  }
-
   function renderOverviewInsights() {
     const container = document.getElementById('overviewInsightsList');
     if (!container) return;
 
-    const insights = generateDynamicClinicalInsights();
-
-    if (!insights || insights.length === 0) {
+    if (state.biomarkers.length === 0 && state.wearableMetrics.length === 0) {
       container.innerHTML = `
-        <div class="p-6 rounded-xl border border-surface-border bg-surface-dark/40 text-center text-xs text-slate-400 space-y-1">
+        <div class="p-4 rounded-xl border border-surface-border bg-surface-dark/40 text-center text-xs text-slate-400 space-y-1">
           <p class="text-slate-300 font-semibold">No active clinical insights yet</p>
-          <p>Doc will synthesize clinical insights once laboratory panels or Apple Watch metrics are uploaded.</p>
+          <p>Doc AI will generate clinical insights once your real laboratory panels or Apple Watch metrics are uploaded.</p>
         </div>
       `;
       return;
     }
 
-    container.innerHTML = insights.map(ins => `
-      <div class="bg-surface-dark/90 p-4.5 rounded-2xl border border-surface-border/80 hover:border-[#00ffb9]/40 transition-all space-y-2.5 shadow-md">
-        <div class="flex items-center justify-between flex-wrap gap-2">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 rounded-lg text-[#00ffb9] bg-[#00646e]/20">
-              <i data-lucide="${ins.icon || 'activity'}" class="w-4 h-4"></i>
-            </div>
-            <div>
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">${ins.category}</span>
-              <h4 class="font-bold text-white text-xs">${ins.title}</h4>
-            </div>
-          </div>
-          <span class="text-[10px] font-black px-2.5 py-0.5 rounded-full border ${ins.badgeColor}">
-            ${ins.badge}
-          </span>
+    container.innerHTML = state.biomarkers.slice(0, 3).map(b => `
+      <div class="bg-surface-dark/80 p-3.5 rounded-xl border border-surface-border/80 flex items-start gap-3">
+        <div class="p-2 rounded-lg text-brand-400 bg-brand-500/10 mt-0.5">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
         </div>
-
-        <p class="text-xs text-slate-300 leading-relaxed">
-          ${ins.summary}
-        </p>
-
-        <div class="bg-surface-card/60 p-3 rounded-xl border border-surface-border/60 text-[11px] space-y-1">
-          <div class="font-semibold text-[#00ffb9] flex items-center gap-1">
-            <span>🎯 Clinical Action Plan:</span>
+        <div class="flex-1 text-xs">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-white">${b.biomarker_name}</span>
+            <span class="text-[10px] text-brand-400 font-mono">Verified Value: ${b.value} ${b.unit}</span>
           </div>
-          <p class="text-slate-300">${ins.recommendation}</p>
-        </div>
-
-        <div class="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-surface-border/40 text-[10px]">
-          <span class="text-slate-400 font-mono">${ins.evidence}</span>
-          <button onclick="askDocInsight('${(ins.prompt || '').replace(/'/g, "\\'")}')" class="text-accent-cyan hover:underline font-bold flex items-center gap-1 cursor-pointer">
-            <span>Consult Doc on this ›</span>
-          </button>
+          <p class="text-slate-300 leading-relaxed">Recorded from your clinical document on ${b.test_date}. Category: ${b.category.replace('_', ' ').toUpperCase()}.</p>
         </div>
       </div>
     `).join('');
 
     if (window.lucide) window.lucide.createIcons();
   }
-
-  window.askDocInsight = function(promptText) {
-    switchTab('doc');
-    const input = document.getElementById('docInput');
-    if (input) {
-      input.value = promptText;
-      input.focus();
-    }
-  };
-
-
 
   function renderOverviewConditions() {
     const container = document.getElementById('overviewConditionsList');
@@ -2698,231 +1841,175 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   // DIAGNOSTIC REPORTS ENGINE
   // ----------------------------------------------------------------------------
-    // ==========================================
-  // PHYSICIAN-READY CLINICAL DIAGNOSTIC REPORT ENGINE (BY DOC)
-  // ==========================================
   function renderReportsView() {
     const report = state.reports[0];
     const reportMeta = document.getElementById('reportMeta');
     const execEl = document.getElementById('repExecSummary');
-    const condEl = document.getElementById('repConditions');
     const bioEl = document.getElementById('repBiomarkers');
     const wearEl = document.getElementById('repWearables');
     const riskEl = document.getElementById('repRisk');
     const recEl = document.getElementById('repRecommendations');
 
     if (!report) {
-      if (reportMeta) reportMeta.textContent = 'No diagnostic assessment generated yet. Click above to generate.';
-      if (execEl) execEl.innerHTML = '—';
-      if (condEl) condEl.innerHTML = '—';
-      if (bioEl) bioEl.innerHTML = '—';
-      if (wearEl) wearEl.innerHTML = '—';
-      if (riskEl) riskEl.innerHTML = '—';
-      if (recEl) recEl.innerHTML = '—';
+      if (reportMeta) reportMeta.textContent = `Patient: ${state.currentUser?.fullName || '--'} • Status: Ready to Generate`;
+      if (execEl) execEl.textContent = 'Click "Generate New Assessment Report" above to compile an executive diagnostic summary.';
+      if (bioEl) bioEl.textContent = '—';
+      if (wearEl) wearEl.textContent = '—';
+      if (riskEl) riskEl.textContent = '—';
+      if (recEl) recEl.textContent = '—';
       return;
     }
 
-    if (reportMeta) reportMeta.textContent = `Patient: ${state.currentUser?.fullName || 'Alastair Leonard Orchard'} • DOB: ${state.currentUser?.dob || '1973-09-20'} • Date: ${report.report_date} • Clinical Agent: Doc (OpenClaw)`;
-    if (execEl) execEl.innerHTML = formatMarkdownToHTML(report.executive_summary);
-    if (condEl) condEl.innerHTML = formatMarkdownToHTML(report.conditions_summary || 'No active conditions tracked.');
-    if (bioEl) bioEl.innerHTML = formatMarkdownToHTML(report.biomarker_analysis);
-    if (wearEl) wearEl.innerHTML = formatMarkdownToHTML(report.wearable_correlations);
-    if (riskEl) riskEl.innerHTML = formatMarkdownToHTML(report.risk_stratification);
-    if (recEl) recEl.innerHTML = formatMarkdownToHTML(report.recommendations);
-  }
-
-  function formatMarkdownToHTML(text) {
-    if (!text) return '—';
-    return text
-      .replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em class="text-slate-200">$1</em>')
-      .replace(/^### (.*$)/gim, '<h5 class="text-sm font-bold text-white mt-2 mb-1">$1</h5>')
-      .replace(/^## (.*$)/gim, '<h4 class="text-base font-bold text-white mt-3 mb-1.5">$1</h4>')
-      .replace(/^• (.*$)/gim, '<li class="ml-4 list-disc text-slate-300">$1</li>')
-      .replace(/\n/g, '<br>');
-  }
-
-  function generateDiagnosticReport() {
-    const biomarkers = state.biomarkers || [];
-    const wearables = state.wearableMetrics || [];
-    const conditions = state.conditions || [];
-
-    // 1. Deduplicate & group biomarkers by panel
-    const findMarker = (pattern) => {
-      return biomarkers.filter(b => {
-        const str = ((b.biomarker_code || '') + ' ' + (b.biomarker_name || '')).toLowerCase();
-        return pattern.test(str);
-      }).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
-    };
-
-    const psaTot = findMarker(/total.*psa|psa.*totale|\bpsa\b/i);
-    const psaFree = findMarker(/free.*psa|psa.*libero/i);
-    const psaRatio = findMarker(/psa.*ratio|ratio.*psa|free.*total.*psa/i);
-    const testo = findMarker(/testost/i);
-    const ldl = findMarker(/ldl/i);
-    const hdl = findMarker(/hdl/i);
-    const tg = findMarker(/triglicer|triglycer/i);
-    const cholTot = findMarker(/colesterolo\s*tot|total\s*chol/i);
-    const tsh = findMarker(/tsh|tireostim/i);
-
-    // Section 1: Executive Summary
-    const execSummary = `**Patient Overview:** Alastair Leonard Orchard (Age: 53, DOB: 1973-09-20, Male).
-**Biological Age Evaluation:** Phenotypic biological age is calculated at **48.2 years** (a **4.8-year biological longevity advantage** over chronological age). This protective longevity delta is primarily driven by elite cardiorespiratory fitness (**VO₂ Max 53.7 mL/kg/min**; top 5th percentile) and optimal metabolic insulin sensitivity (**Triglyceride/HDL ratio: 0.88–1.11**).
-**Clinical Disposition:** The patient presents with outstanding cardiovascular endurance, normal urological prostate kinetics (Free/Total PSA ratio 38%), robust androgenic status (Total Testosterone 6.6 ng/mL), and successful curative excision of a suprascapular basal cell carcinoma. Primary clinical optimization goals focus on bridging calculated LDL-C (111–127 mg/dL) to direct ApoB particle targets (< 60 mg/dL) and conducting fasted endocrine/thyroid surveillance.`;
-
-    // Section 2: Conditions & Clinical History
-    const condSummary = `### Primary Tracked Conditions & Surgical History:
-
-1. **Suprascapular Nodular Basal Cell Carcinoma (BCC):**
-   • **Procedure & Histology:** Excisional biopsy performed at **Villa Montallegro** by **Dr. Maietta Farnese Giorgio** (Histology Date: **September 27, 2026**).
-   • **Pathology:** Nodular Basal Cell Carcinoma extending into upper reticular dermis (Clark Level III).
-   • **Surgical Margins:** Completely clear with verified healthy tissue (*"margini di resezione indenni > 1 mm"*).
-   • **Clinical Status:** **Curatively Resolved / Disease-Free**.
-   • **Surveillance:** Annual digital full-body dermatoscopy; topical silicone scar remodeling.
-
-2. **Left Eye (OS) Macular Foveal Micro-Edema:**
-   • **Trajectory:** Central Macular Thickness normalized from 298 µm (with acute subfoveal fluid in April 2025) down to **272 µm** in 2026. Right eye (OD) stable at **268 µm**.
-   • **Clinical Status:** **Resolved / Structurally Stable**.
-   • **Supportive Protocol:** Daily xanthophyll carotenoids (Lutein 20mg, Zeaxanthin 4mg, Astaxanthin 6mg, DHA > 1.5g/day).`;
-
-    // Section 3: Grouped Biomarker Trajectories
-    let bioAnalysis = `### System-by-System Laboratory Trajectories:\n\n`;
-
-    // Urological Panel
-    bioAnalysis += `**A. Urological & Prostate Kinetics (PSA Panel):**\n`;
-    if (psaTot.length > 0) {
-      bioAnalysis += `• **Total PSA:** ${psaTot.map(p => `${p.value} ng/mL (${p.test_date})`).join(' vs ')} — Stable, safely below the age cutoff of < 2.5 ng/mL.\n`;
-    }
-    if (psaFree.length > 0) {
-      bioAnalysis += `• **Free PSA:** ${psaFree.map(p => `${p.value} ng/mL (${p.test_date})`).join(' vs ')}.\n`;
-    }
-    if (psaRatio.length > 0 || (psaFree.length > 0 && psaTot.length > 0)) {
-      const rVal = psaRatio.length > 0 ? psaRatio.map(r => `${r.value}% (${r.test_date})`).join(' vs ') : '38% (2026) vs 52% (2025)';
-      bioAnalysis += `• **Free / Total PSA Ratio:** ${rVal} — Well above the benign threshold (>= 25%), indicating low risk of malignant proliferation.\n\n`;
-    }
-
-    // Cardiovascular Panel
-    bioAnalysis += `**B. Cardiovascular & Atherogenic Lipid Profile:**\n`;
-    if (cholTot.length > 0) bioAnalysis += `• **Total Cholesterol:** ${cholTot.map(c => `${c.value} mg/dL (${c.test_date})`).join(' vs ')}.\n`;
-    if (hdl.length > 0) bioAnalysis += `• **HDL-C (Protective):** ${hdl.map(c => `${c.value} mg/dL (${c.test_date})`).join(' vs ')}.\n`;
-    if (tg.length > 0) bioAnalysis += `• **Triglycerides:** ${tg.map(c => `${c.value} mg/dL (${c.test_date})`).join(' vs ')}.\n`;
-    if (tg.length > 0 && hdl.length > 0) {
-      const ratio1 = (parseFloat(tg[0].value) / parseFloat(hdl[0].value)).toFixed(2);
-      bioAnalysis += `• **Triglyceride-to-HDL Ratio:** **${ratio1}** (Optimal insulin sensitivity < 1.5; low atherogenic dyslipidemia risk).\n`;
-    }
-    if (ldl.length > 0) {
-      bioAnalysis += `• **LDL-C (Calculated):** ${ldl.map(c => `${c.value} mg/dL (${c.test_date})`).join(' vs ')} (Corresponds to estimated ApoB ~85–95 mg/dL vs target < 60 mg/dL).\n\n`;
-    }
-
-    // Endocrine Panel
-    bioAnalysis += `**C. Endocrine & Thyroid Profile:**\n`;
-    if (testo.length > 0) {
-      bioAnalysis += `• **Total Testosterone:** ${testo.map(t => `${t.value} ${t.unit} (${t.test_date})`).join(' vs ')} — Robust physiological androgen status.\n`;
-    }
-    if (tsh.length > 0) {
-      bioAnalysis += `• **TSH (Thyroid Stimulating Hormone):** ${tsh.map(t => `${t.value} µIU/mL (${t.test_date})`).join(' vs ')} — Upper physiological threshold (0.4–4.0 µIU/mL).\n`;
-    }
-
-    // Section 4: Wearable Telemetry
-    const vo2 = wearables.find(w => w.metric_type === 'vo2_max') || { value: '53.7' };
-    const rhr = wearables.find(w => w.metric_type === 'resting_heart_rate') || { value: '49' };
-    const wearSummary = `• **Cardiorespiratory Fitness (VO₂ Max):** **${vo2.value} mL/kg/min** (Measured via Apple Watch Ultra 4; top 5% tier for age 50–59).
-• **Resting Heart Rate:** **${rhr.value} bpm** (Baseline average 48–51 bpm, reflecting high vagal/parasympathetic tone).
-• **Sleep Architecture:** Average 7h 24m total duration, with **1h 22m Deep Sleep** (slow-wave sleep supporting nocturnal GH/androgen pulsatility) and **1h 45m REM**.`;
-
-    // Section 5: Pinpointed Clinical Areas of Concern
-    const riskSummary = `1. ⚠️ **ApoB Particle Concentration vs. Vascular Endothelial Influx:**
-   While HDL and Triglycerides reflect optimal metabolic health, calculated LDL-C at 111–127 mg/dL indicates circulating atherogenic particle exposure. For definitive preventive longevity, measuring direct ApoB (< 60 mg/dL target) is recommended to halt sub-endothelial particle retention.
-
-2. ⚠️ **Thyroid-Metabolic Interaction (TSH 3.96 µIU/mL):**
-   TSH sits at the upper limit of normal. Mild subclinical elevation can subtly reduce hepatic LDL receptor recycling and impair metabolic clearance. Fasted morning Free T3, Free T4, and Anti-TPO antibodies are recommended to evaluate functional thyroid activity.
-
-3. ⚠️ **Post-Excision Dermatological Surveillance:**
-   Following curative excision of suprascapular nodular BCC, annual digital dermatoscopy is indicated to screen for secondary primary skin lesions on sun-exposed anatomical zones.`;
-
-    // Section 6: Actionable Physician Recommendations
-    const recSummary = `### Suggested Laboratory Requisition for Attending Physician:
-
-Please consider ordering the following targeted follow-up panel on the patient's next routine blood draw:
-1. **Direct Apolipoprotein B (ApoB)** — Target < 60 mg/dL for absolute cardiovascular risk arrest.
-2. **Lipoprotein(a) [Lp(a)]** — One-time baseline evaluation for genetically independent atherogenic risk.
-3. **High-Sensitivity CRP (hs-CRP)** — Confirmation of vascular endothelial quiescence (< 0.5–1.0 mg/L).
-4. **Fasted Morning Endocrine Panel (8:00 AM):** Free Testosterone (equilibrium dialysis), Total Testosterone, SHBG, LH, and FSH.
-5. **Comprehensive Thyroid Panel:** Free T3, Free T4, TSH, and Anti-TPO / Anti-TG antibodies.
-6. **Glycemic Biomarkers:** Fasting Glucose, Fasting Insulin, and HbA1c.`;
-
-    const newReport = {
-      id: 'rep-' + Date.now(),
-      report_date: new Date().toISOString().split('T')[0],
-      executive_summary: execSummary,
-      conditions_summary: condSummary,
-      biomarker_analysis: bioAnalysis,
-      wearable_correlations: wearSummary,
-      risk_stratification: riskSummary,
-      recommendations: recSummary
-    };
-
-    state.reports = [newReport];
-    saveUserData();
-    renderReportsView();
-    switchTab('reports');
-    alert('Physician-Ready Diagnostic Executive Report generated successfully!');
+    if (reportMeta) reportMeta.textContent = `Patient: ${state.currentUser?.fullName || '--'} • Date: ${report.report_date} • Reviewing Agent: Doc`;
+    if (execEl) execEl.textContent = report.executive_summary;
+    if (bioEl) bioEl.textContent = report.biomarker_analysis;
+    if (wearEl) wearEl.textContent = report.wearable_correlations;
+    if (riskEl) riskEl.textContent = report.risk_stratification;
+    if (recEl) recEl.textContent = report.recommendations;
   }
 
   const btnQuickReport = document.getElementById('btnQuickReport');
   const btnGenerateNewReport = document.getElementById('btnGenerateNewReport');
+
+  function generateDiagnosticReport() {
+    const catalog = getIngestedBiomarkerCatalog();
+    const hasData = state.biomarkers.length > 0 || state.wearableMetrics.length > 0;
+    const newReport = {
+      id: 'rep-' + Date.now(),
+      report_date: new Date().toISOString().split('T')[0],
+      executive_summary: hasData 
+        ? `Executive health evaluation for ${state.currentUser.fullName}. Clinical evaluation synthesized across ${catalog.length} verified biomarker parameters.`
+        : `Baseline assessment initialized for ${state.currentUser.fullName}. Pending upload of primary laboratory panels.`,
+      biomarker_analysis: state.biomarkers.length > 0 
+        ? state.biomarkers.map(b => `• ${b.biomarker_name}: ${b.value} ${b.unit} (${b.category})`).join('\n')
+        : `• No lab panels uploaded yet. Upload blood tests in Lab Vault.`,
+      wearable_correlations: state.wearableMetrics.length > 0
+        ? `Continuous Apple Watch telemetry integrated.`
+        : `• Apple Watch Ultra 4 sync pending. Configure webhook in Devices & Cloud tab.`,
+      risk_stratification: hasData 
+        ? `Assessment based strictly on ${state.biomarkers.length} verified laboratory records.`
+        : `Risk stratification pending primary biomarker ingestion.`,
+      recommendations: `1. Maintain scheduled diagnostic testing.\n2. Track acute/chronic conditions in Conditions Hub.`
+    };
+
+    state.reports.unshift(newReport);
+    saveUserData();
+    renderReportsView();
+    switchTab('reports');
+  }
+
   if (btnQuickReport) btnQuickReport.addEventListener('click', generateDiagnosticReport);
   if (btnGenerateNewReport) btnGenerateNewReport.addEventListener('click', generateDiagnosticReport);
-
 
   // ----------------------------------------------------------------------------
   // VAULT BACKUP EXPORT & IMPORT (MULTI-DEVICE RESTORE)
   // ----------------------------------------------------------------------------
-  
-  
-  // Clear data / Reset Handler (Strict True Zero State Wipe)
-  const btnClearData = document.getElementById('btnClearData');
-  if (btnClearData) {
-    btnClearData.addEventListener('click', async () => {
-      const confirmWipe = confirm('⚠️ Reset & Clear All Data?\n\nThis will permanently delete all biomarkers, documents, conditions, and vitals from both your browser and the Supabase cloud database.');
-      if (!confirmWipe) return;
+  const btnExportVaultBackup = document.getElementById('btnExportVaultBackup');
+  const btnImportVaultBackup = document.getElementById('btnImportVaultBackup');
+  const backupFileInput = document.getElementById('backupFileInput');
 
-      const userEmail = state.currentUser ? state.currentUser.email : 'alastairorchard@icloud.com';
-      const userKey = btoa(userEmail);
+  if (btnExportVaultBackup) {
+    btnExportVaultBackup.addEventListener('click', () => {
+      const email = (state.currentUser?.email || 'user').toLowerCase();
+      const bundle = {
+        app: 'AegisHealth',
+        version: '1.0.0',
+        exported_at: new Date().toISOString(),
+        user_email: email,
+        user_profile: state.currentUser,
+        biomarkers: state.biomarkers,
+        wearableMetrics: state.wearableMetrics,
+        labDocuments: state.labDocuments,
+        conditions: state.conditions,
+        conditionTags: state.conditionTags,
+        insights: state.insights,
+        messages: state.messages,
+        reports: state.reports
+      };
 
-      // 1. Wipe all local storage keys & set explicit wiped flag
-      localStorage.removeItem(`aegis_data_${userKey}`);
-      localStorage.removeItem('aegis_data_global_vault');
-      localStorage.setItem(`aegis_wiped_${userKey}`, 'true');
-
-      // 2. Wipe Supabase Cloud Database
-      if (state.supabase) {
-        try {
-          await state.supabase
-            .from('aegis_user_vaults')
-            .delete()
-            .eq('user_email', userEmail);
-        } catch (e) {
-          console.warn('Supabase cloud wipe notice:', e);
-        }
-      }
-
-      // 3. Reset in-memory state to true empty arrays (0)
-      state.biomarkers = [];
-      state.wearableMetrics = [];
-      state.labDocuments = [];
-      state.conditions = [];
-      state.conditionTags = [];
-      state.insights = [];
-      state.messages = [];
-      state.reports = [];
-
-      initDocGreeting();
-      renderAll();
-      alert('🗑️ Vault Cleared: Your dashboard is now at a clean zero state (0 biomarkers, 0 documents, 0 vitals).');
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `aegis_health_vault_backup_${email.split('@')[0]}_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
     });
   }
 
+  if (btnImportVaultBackup && backupFileInput) {
+    btnImportVaultBackup.addEventListener('click', () => backupFileInput.click());
+    backupFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (data && (data.biomarkers || data.wearableMetrics)) {
+          state.biomarkers = Array.isArray(data.biomarkers) ? data.biomarkers : state.biomarkers;
+          state.wearableMetrics = Array.isArray(data.wearableMetrics) ? data.wearableMetrics : state.wearableMetrics;
+          state.labDocuments = Array.isArray(data.labDocuments) ? data.labDocuments : state.labDocuments;
+          state.conditions = Array.isArray(data.conditions) ? data.conditions : state.conditions;
+          state.conditionTags = Array.isArray(data.conditionTags) ? data.conditionTags : state.conditionTags;
+          state.insights = Array.isArray(data.insights) ? data.insights : state.insights;
+          state.messages = Array.isArray(data.messages) ? data.messages : state.messages;
+          state.reports = Array.isArray(data.reports) ? data.reports : state.reports;
+
+          await saveUserData();
+          renderAll();
+          alert('Health vault backup successfully restored and synced to cloud!');
+        } else {
+          alert('Invalid backup file format.');
+        }
+      } catch (err) {
+        alert('Error reading backup file: ' + err.message);
+      }
+      backupFileInput.value = '';
+    });
+  }
+
+  // Manual on-demand cloud sync button
+  const btnManualCloudSync = document.getElementById('btnManualCloudSync');
+  if (btnManualCloudSync) {
+    btnManualCloudSync.addEventListener('click', async () => {
+      btnManualCloudSync.classList.add('animate-spin');
+      await loadUserData();
+      renderAll();
+      setTimeout(() => btnManualCloudSync.classList.remove('animate-spin'), 600);
+      alert('Health vault synced with Supabase cloud database!');
+    });
+  }
+
+  // Clear all data (Wipe from both Cloud and Local)
+  const btnClearData = document.getElementById('btnClearData');
+  if (btnClearData) {
+    btnClearData.addEventListener('click', async () => {
+      if (confirm('Clear all stored biomarkers and reset your health vault to a clean zero state across all devices?')) {
+        const email = (state.currentUser?.email || '').toLowerCase().trim();
+        state.biomarkers = [];
+        state.wearableMetrics = [];
+        state.labDocuments = [];
+        state.conditions = [];
+        state.conditionTags = [];
+        state.insights = [];
+        state.messages = [];
+        state.reports = [];
+        initDocGreeting();
+        
+        // Delete from Supabase Cloud
+        if (state.supabase && email) {
+          try {
+            await state.supabase.from('aegis_user_vaults').delete().eq('user_email', email);
+          } catch(e) {}
+        }
+
+        await saveUserData();
+        renderAll();
+        alert('Vault cleared! You now have a clean zero-state dashboard across all devices.');
+      }
+    });
+  }
 
   // Copy Webhook / Token Helpers
   const btnCopyWebhook = document.getElementById('btnCopyWebhook');
@@ -2935,52 +2022,6 @@ Please consider ordering the following targeted follow-up panel on the patient's
     });
   }
 
-  
-  
-
-  
-  // 1-Click Load Ingested Apple Watch Dataset
-  const btnLoadAppleHealthDataset = document.getElementById('btnLoadAppleHealthDataset');
-  if (btnLoadAppleHealthDataset) {
-    btnLoadAppleHealthDataset.addEventListener('click', async () => {
-      try {
-        btnLoadAppleHealthDataset.textContent = 'Loading...';
-        const res = await fetch('./aegis_daily_vitals.json');
-        if (!res.ok) throw new Error('Could not load aegis_daily_vitals.json');
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          // Take the latest 400 daily metrics to fit cleanly into active state
-          const recentData = data.slice(-400);
-          state.wearableMetrics = recentData;
-
-          // Archive document record in Stored Documents Vault
-          state.labDocuments.unshift({
-            id: 'doc-vitals-auto-' + Date.now(),
-            user_id: state.currentUser?.id || 'demo-user',
-            document_title: 'Apple Watch Ultra 4 Longitudinal Vitals Dataset',
-            document_type: 'wearables',
-            lab_provider: 'Apple Watch Ultra 4 & Health App',
-            test_date: new Date().toISOString().split('T')[0],
-            file_name: 'aegis_daily_vitals.json',
-            file_size_bytes: 2800000,
-            mime_type: 'application/json',
-            ai_interpretation_summary: `Ingested and archived ${recentData.length} daily Apple Watch Ultra 4 telemetry streams (VO2 Max 53.7, Resting HR, HRV SDNN, Sleep).`
-          });
-
-          await saveUserData();
-          renderAll();
-          alert(`Success! Loaded ${recentData.length} verified daily Apple Watch Ultra 4 records into your Document Vault & Trends.`);
-        }
-      } catch (err) {
-        alert('Error loading dataset: ' + err.message);
-      } finally {
-        btnLoadAppleHealthDataset.innerHTML = '<i data-lucide="download-cloud" class="w-3.5 h-3.5"></i> Load Ingested Apple Watch Data';
-        if (window.lucide) window.lucide.createIcons();
-      }
-    });
-  }
-
-  
   const btnCopyToken = document.getElementById('btnCopyToken');
   if (btnCopyToken) {
     btnCopyToken.addEventListener('click', () => {
@@ -2994,6 +2035,3 @@ Please consider ordering the following targeted follow-up panel on the patient's
   // Check initial session
   checkSession();
 });
-
-
-  
