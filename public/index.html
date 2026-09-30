@@ -636,9 +636,27 @@
             <div id="scannedThumbnailsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
           </div>
 
-          <!-- Uploaded Documents Vault List -->
-          <div>
-            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Stored Lab Documents</h3>
+          <!-- Stored Lab Documents & Multi-Modal Imaging Vault -->
+          <div class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-surface-border pb-3">
+              <div>
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                  <i data-lucide="archive" class="w-4 h-4 text-[#00ffb9]"></i> Stored Medical Documents & Imaging Archive
+                </h3>
+                <p class="text-xs text-slate-400">Categorized diagnostic records, narrative ultrasounds, 3D tomography scans, and pathology letters</p>
+              </div>
+              
+              <!-- Category Filter Chips for Documents -->
+              <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-none text-[11px]" id="docCategoryFilterChips">
+                <button onclick="filterDocVault('ALL')" class="doc-filter-chip px-3 py-1 rounded-full font-bold bg-[#00646e] text-white" data-cat="ALL">All Documents</button>
+                <button onclick="filterDocVault('ultrasound')" class="doc-filter-chip px-3 py-1 rounded-full text-slate-400 bg-surface-dark border border-surface-border hover:text-white" data-cat="ultrasound">🖼️ Ultrasounds</button>
+                <button onclick="filterDocVault('ophthalmology')" class="doc-filter-chip px-3 py-1 rounded-full text-slate-400 bg-surface-dark border border-surface-border hover:text-white" data-cat="ophthalmology">👁️ Ophthalmology</button>
+                <button onclick="filterDocVault('histology')" class="doc-filter-chip px-3 py-1 rounded-full text-slate-400 bg-surface-dark border border-surface-border hover:text-white" data-cat="histology">🔬 Histology</button>
+                <button onclick="filterDocVault('blood_panel')" class="doc-filter-chip px-3 py-1 rounded-full text-slate-400 bg-surface-dark border border-surface-border hover:text-white" data-cat="blood_panel">🩸 Blood Panels</button>
+              </div>
+            </div>
+
+            <!-- Documents Grid -->
             <div id="labDocsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <!-- Dynamically populated -->
             </div>

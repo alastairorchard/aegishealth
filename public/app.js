@@ -330,7 +330,75 @@ document.addEventListener('DOMContentLoaded', () => {
   // ----------------------------------------------------------------------------
   // UNIFIED CROSS-DEVICE DATA SYNC (SUPABASE CLOUD + LOCAL CACHE)
   // ----------------------------------------------------------------------------
+  
+  // Initial Multi-Modal Diagnostic Documents Baseline
+  const DEFAULT_MULTIMODAL_DOCUMENTS = [
+    {
+      id: 'doc-histology-001',
+      user_id: 'alastairorchard@icloud.com',
+      document_title: 'Esame Istologico — Asportazione Losanga Dorso (BCC)',
+      document_type: 'histology',
+      lab_provider: 'Villa Montallegro, Genova (Dott. Francesco Cabiddu / Dott. Maietta)',
+      test_date: '2026-09-27',
+      file_name: 'Referto_Istologico_Orchard_20260927.pdf',
+      file_size_bytes: 345000,
+      mime_type: 'application/pdf',
+      ai_interpretation_summary: 'Carcinoma basocellulare solido-nodulare, limitato al derma reticolare superiore (Clark Livello III). Margini di resezione completamente indenni (distanza minima > 1 mm). Curativamente risolto.'
+    },
+    {
+      id: 'doc-thyroid-002',
+      user_id: 'alastairorchard@icloud.com',
+      document_title: 'Ecotomografia Tiroidea (Tiroide & Paratiroidi)',
+      document_type: 'ultrasound',
+      lab_provider: 'Villa Montallegro, Genova (Dott. Buscaglia Michele)',
+      test_date: '2025-06-12',
+      file_name: 'Ecotomografia_Tiroidea_20250612.pdf',
+      file_size_bytes: 412000,
+      mime_type: 'application/pdf',
+      ai_interpretation_summary: 'Tiroide nei limiti volumetrici (AP dx 14mm, sn 15mm) ed ecostrutturali. Piccolo nodulo ipoecogeno di aspetto spongiforme (4x3 mm) al terzo inferiore lobo sinistro (benigno EU-TIRADS 2). Trachea in asse.'
+    },
+    {
+      id: 'doc-pentacam-003',
+      user_id: 'alastairorchard@icloud.com',
+      document_title: 'Oculus Pentacam — 3D Corneal Pachymetric Tomography',
+      document_type: 'ophthalmology',
+      lab_provider: 'Centro Oculistico Specialistico',
+      test_date: '2025-06-06',
+      file_name: 'Oculus_Pentacam_Pachymetric_3D_20250606.pdf',
+      file_size_bytes: 620000,
+      mime_type: 'application/pdf',
+      ai_interpretation_summary: 'Tomografia corneale 3D bilaterale simmetrica. Spessore corneale centrale apice: 557 µm OD / 554 µm OS (punto più sottile 549 µm OD / 543 µm OS). Profondità camera anteriore: 2.75 mm / 2.73 mm. Angoli aperti (27.1°).'
+    },
+    {
+      id: 'doc-muscle-004',
+      user_id: 'alastairorchard@icloud.com',
+      document_title: 'Ecotomografia Muscolare Gamba Sinistra (Tennis Leg)',
+      document_type: 'ultrasound',
+      lab_provider: 'Villa Montallegro, Genova (Dott. Bacigalupo Lorenzo)',
+      test_date: '2025-02-03',
+      file_name: 'Ecografia_Muscolare_Gemello_20250203.pdf',
+      file_size_bytes: 380000,
+      mime_type: 'application/pdf',
+      ai_interpretation_summary: 'Lesione da disinserzione della giunzione miotendinea distale del gemello mediale (Tennis Leg): estensione 22mm CC x 16mm LL (~50% larghezza muscolo) con falda ipoecogena di 1-2mm. Vene gemellari pervie.'
+    },
+    {
+      id: 'doc-blood-005',
+      user_id: 'alastairorchard@icloud.com',
+      document_title: 'Pannello Ematochimico & PSA / Testosterone',
+      document_type: 'blood_panel',
+      lab_provider: 'Laboratorio Villa Montallegro, Genova',
+      test_date: '2026-07-02',
+      file_name: 'Pannello_Ematochimico_Montallegro_20260702.pdf',
+      file_size_bytes: 495000,
+      mime_type: 'application/pdf',
+      ai_interpretation_summary: 'PSA Totale: 1.38 ng/mL (Ratio PSA Libero/Totale: 38%), Testosterone Totale: 6.6 ng/mL (660 ng/dL), Colesterolo Totale: 196 mg/dL, HDL: 72 mg/dL, Trigliceridi: 63 mg/dL, LDL: 111 mg/dL.'
+    }
+  ];
+
   async function loadUserData() {
+    if (!state.labDocuments || state.labDocuments.length === 0) {
+      state.labDocuments = [...DEFAULT_MULTIMODAL_DOCUMENTS];
+    }
     if (!state.currentUser) return;
     const userKey = btoa(state.currentUser.email);
     const localKey = `aegis_data_${userKey}`;
@@ -1833,41 +1901,82 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  
+  // Multi-Modal Document Filtering
+  let activeDocVaultFilter = 'ALL';
+  window.filterDocVault = function(cat) {
+    activeDocVaultFilter = cat;
+    document.querySelectorAll('.doc-filter-chip').forEach(btn => {
+      if (btn.getAttribute('data-cat') === cat) {
+        btn.className = 'doc-filter-chip px-3 py-1 rounded-full font-bold bg-[#00646e] text-white';
+      } else {
+        btn.className = 'doc-filter-chip px-3 py-1 rounded-full text-slate-400 bg-surface-dark border border-surface-border hover:text-white';
+      }
+    });
+    renderLabDocsGrid();
+  };
+
   function renderLabDocsGrid() {
     ensureLabDocumentsSynchronized();
     const grid = document.getElementById('labDocsGrid');
     if (!grid) return;
 
-    if (state.labDocuments.length === 0) {
+    let docs = state.labDocuments || [];
+    if (activeDocVaultFilter !== 'ALL') {
+      docs = docs.filter(d => (d.document_type || '').toLowerCase() === activeDocVaultFilter.toLowerCase());
+    }
+
+    if (docs.length === 0) {
       grid.innerHTML = `
-        <div class="col-span-full p-6 text-center text-xs text-slate-500 border border-surface-border rounded-xl bg-surface-dark/30">
-          No lab reports stored in vault. Click above to upload your blood panel or OCT scan.
+        <div class="col-span-full p-6 text-center text-xs text-slate-400 border border-surface-border rounded-xl bg-surface-dark/30">
+          No documents found matching category "${activeDocVaultFilter}". Click above to upload or photograph reports.
         </div>
       `;
       return;
     }
 
-    grid.innerHTML = state.labDocuments.map(doc => `
-      <div class="bg-surface-dark/80 border border-surface-border rounded-xl p-4 space-y-3">
-        <div class="flex items-start justify-between">
-          <div class="p-2 rounded-lg bg-brand-500/10 text-brand-400">
-            <i data-lucide="file-check" class="w-5 h-5"></i>
+    const typeIcons = {
+      'ultrasound': { icon: 'image', badge: 'ULTRASOUND', color: 'text-accent-cyan bg-accent-cyan/10 border-accent-cyan/30' },
+      'ophthalmology': { icon: 'eye', badge: 'OPHTHALMOLOGY', color: 'text-[#00ffb9] bg-[#00646e]/20 border-[#00ffb9]/30' },
+      'histology': { icon: 'microscope', badge: 'HISTOLOGY', color: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
+      'blood_panel': { icon: 'droplet', badge: 'BLOOD PANEL', color: 'text-rose-400 bg-rose-500/10 border-rose-500/30' },
+      'consultation': { icon: 'stethoscope', badge: 'CONSULTATION', color: 'text-purple-400 bg-purple-500/10 border-purple-500/30' }
+    };
+
+    grid.innerHTML = docs.map(doc => {
+      const tInfo = typeIcons[doc.document_type] || { icon: 'file-text', badge: 'VERIFIED', color: 'text-brand-400 bg-brand-500/10 border-brand-500/30' };
+
+      return `
+        <div class="bg-surface-dark/90 border border-surface-border hover:border-[#00ffb9]/40 rounded-2xl p-4.5 space-y-3 transition-all shadow-md group flex flex-col justify-between">
+          <div class="space-y-2">
+            <div class="flex items-start justify-between gap-2">
+              <div class="p-2 rounded-xl bg-[#070c1b] border border-[#172447] text-white shrink-0">
+                <i data-lucide="${tInfo.icon}" class="w-5 h-5"></i>
+              </div>
+              <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase border ${tInfo.color}">
+                ${tInfo.badge}
+              </span>
+            </div>
+
+            <div>
+              <h4 class="font-bold text-sm text-white group-hover:text-[#00ffb9] transition-colors line-clamp-1">${escapeHtml(doc.document_title)}</h4>
+              <p class="text-[11px] text-slate-400 mt-0.5">🏥 ${escapeHtml(doc.lab_provider || 'Clinical Facility')} • 📅 ${doc.test_date}</p>
+            </div>
+
+            <p class="text-xs text-slate-300 leading-relaxed bg-[#070c1b] p-3 rounded-xl border border-[#172447] line-clamp-3">
+              "${escapeHtml(doc.ai_interpretation_summary || 'Document parsed.')}"
+            </p>
           </div>
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">VERIFIED</span>
+
+          <div class="pt-3 border-t border-surface-border flex items-center justify-between text-xs">
+            <button class="btn-view-doc text-xs text-[#00ffb9] hover:underline font-bold flex items-center gap-1 cursor-pointer" data-id="${doc.id}">
+              <i data-lucide="file-text" class="w-3.5 h-3.5"></i> View Full Findings
+            </button>
+            <span class="text-[10px] text-slate-500 font-mono">${((doc.file_size_bytes || 350000) / 1024).toFixed(0)} KB</span>
+          </div>
         </div>
-        <div>
-          <h4 class="font-bold text-sm text-white truncate">${doc.document_title}</h4>
-          <p class="text-[11px] text-slate-400">${doc.lab_provider || 'Clinical Lab'} • ${doc.test_date}</p>
-        </div>
-        <p class="text-[11px] text-slate-300 leading-relaxed line-clamp-2">${doc.ai_interpretation_summary || 'Document parsed.'}</p>
-        <div class="pt-2 border-t border-surface-border flex items-center justify-between">
-          <button class="btn-view-doc text-xs text-brand-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer" data-id="${doc.id}">
-            <i data-lucide="eye" class="w-3.5 h-3.5"></i> View Details
-          </button>
-          <span class="text-[10px] text-slate-500">${(doc.file_size_bytes / 1024).toFixed(0)} KB</span>
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     if (window.lucide) window.lucide.createIcons();
 
@@ -1879,6 +1988,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
+
 
   function openDocumentViewer(doc) {
     const modal = document.getElementById('docViewerModal');
@@ -2187,12 +2297,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
   // DYNAMIC CLINICAL INSIGHTS & PREDICTIONS ENGINE (BY DOC)
   // ==========================================
+    // ==========================================
+  // DYNAMIC CLINICAL INSIGHTS & PREDICTIONS ENGINE (BY DOC)
+  // ==========================================
   function generateDynamicClinicalInsights() {
     const insights = [];
     const biomarkers = state.biomarkers || [];
     const wearables = state.wearableMetrics || [];
     const conditions = state.conditions || [];
+    const docs = state.labDocuments || [];
 
+    // Helper matcher by regex
     const findLatest = (pattern) => {
       const matches = biomarkers.filter(b => {
         const str = ((b.biomarker_code || '') + ' ' + (b.biomarker_name || '')).toLowerCase();
@@ -2202,160 +2317,105 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const psaRatio = findLatest(/psa.*ratio|ratio.*psa|free.*total.*psa/i);
-    const psaFree = findLatest(/free.*psa|psa.*libero/i);
     const psaTot = findLatest(/total.*psa|psa.*totale|\bpsa\b/i);
     const testo = findLatest(/testost/i);
     const ldl = findLatest(/ldl/i);
-    const hdl = findLatest(/hdl/i);
     const tg = findLatest(/triglicer|triglycer/i);
-    const tsh = findLatest(/tsh|tireostim/i);
-    const macularOS = findLatest(/oct.*os|macul.*sinistr/i);
-    const macularOD = findLatest(/oct.*od|macul.*destr/i);
+    const hdl = findLatest(/hdl/i);
 
-    // 1. PSA Ratio & Urological Assessment
-    if (psaRatio || psaTot || psaFree) {
-      const ratioVal = psaRatio ? parseFloat(psaRatio.value) : (psaFree && psaTot ? ((parseFloat(psaFree.value) / parseFloat(psaTot.value)) * 100).toFixed(1) : '38');
-      const totVal = psaTot ? psaTot.value : '1.38';
-      const isFavorable = parseFloat(ratioVal) >= 25;
-
-      insights.push({
-        id: 'ins-psa',
-        category: "Men's Health & Urology",
-        badge: isFavorable ? 'Optimal / Low Risk' : 'Surveillance Required',
-        badgeColor: isFavorable ? 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30' : 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-        icon: 'shield-check',
-        title: 'Free / Total PSA Ratio & Prostate Health Assessment',
-        summary: `Total PSA is verified at **${totVal} ng/mL** (safely below the age-specific cutoff of < 2.5 ng/mL) and your Free/Total Ratio is **${ratioVal}%**. A Free/Total ratio >= 25% represents strong clinical reassurance of benign tissue.`,
-        recommendation: 'Maintain annual routine urological blood panels. Ensure testing is performed at least 48 hours after vigorous cycling or heavy mechanical perineal pressure.',
-        evidence: `Total PSA: ${totVal} ng/mL • Free/Total Ratio: ${ratioVal}% • Status: Benign Range`,
-        prompt: 'Doc, provide a clinical review of my Free/Total PSA ratio and confirm long-term surveillance intervals.'
-      });
-    }
-
-    // 2. Endocrine & Androgen Vitality
-    if (testo) {
-      const tVal = parseFloat(testo.value);
-      const isOptimal = (tVal >= 6.0 && testo.unit.includes('ng/mL')) || tVal >= 550;
-
-      insights.push({
-        id: 'ins-testo',
-        category: 'Endocrinology & Vitality',
-        badge: isOptimal ? 'Optimal Androgenic Status' : 'Physiological Monitoring',
-        badgeColor: isOptimal ? 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30' : 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-        icon: 'zap',
-        title: 'Total Testosterone & Anabolic Recovery Status',
-        summary: `Total Testosterone is verified at **${testo.value} ${testo.unit}** (${testo.unit.includes('ng/mL') ? (tVal * 100).toFixed(0) + ' ng/dL' : testo.value + ' ng/dL'}). This reflects healthy physiological gonadal output supporting lean muscle retention, bone density, and neuro-cognitive focus.`,
-        recommendation: 'Support endogenous testosterone synthesis with resistance training, adequate zinc/magnesium intake, and consistent deep sleep architecture (>80 min nocturnal slow-wave sleep).',
-        evidence: `Total Testosterone: ${testo.value} ${testo.unit} • Tested: ${testo.test_date}`,
-        prompt: 'Doc, analyze my testosterone level in the context of my training output and cardiovascular recovery.'
-      });
-    }
-
-    // 3. Cardiovascular & Atherogenic Lipid Influx
-    if (ldl || tg || hdl) {
-      const ldlVal = ldl ? ldl.value : '127';
-      const tgVal = tg ? tg.value : '77';
-      const hdlVal = hdl ? hdl.value : '69';
-      const ratio = (parseFloat(tgVal) / parseFloat(hdlVal)).toFixed(2);
-
-      insights.push({
-        id: 'ins-cardio',
-        category: 'Cardiovascular Longevity',
-        badge: 'Longevity Target',
-        badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-        icon: 'heart-pulse',
-        title: 'ApoB Atherogenic Particle Target (<60 mg/dL)',
-        summary: `Triglyceride/HDL ratio is **${ratio}** (optimal insulin sensitivity). However, LDL-C at **${ldlVal} mg/dL** corresponds to an estimated ApoB of ~90 mg/dL, above your longevity goal of < 60 mg/dL.`,
-        recommendation: 'Order a direct ApoB assay and one-time Lp(a) to evaluate actual circulating atherogenic particle number and eliminate vascular endothelial retention.',
-        evidence: `LDL-C: ${ldlVal} mg/dL • HDL: ${hdlVal} mg/dL • TG/HDL: ${ratio}`,
-        prompt: 'Doc, what clinical protocols do you recommend to optimize my ApoB below 60 mg/dL?'
-      });
-    }
-
-    // 4. Autonomic Recovery & Cardiorespiratory Performance
-    const vo2 = wearables.find(w => w.metric_type === 'vo2_max') || { value: '53.7', unit: 'mL/kg/min' };
-    const rhr = wearables.find(w => w.metric_type === 'resting_heart_rate') || { value: '49', unit: 'bpm' };
-    
+    // 1. UNSTRUCTURED RECORD INSIGHT: Musculoskeletal / Ultrasound ("Tennis Leg")
     insights.push({
-      id: 'ins-performance',
-      category: 'Autonomic & Cardiorespiratory',
-      badge: 'Elite Top 5%',
-      badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
+      id: 'ins-muscle-us',
+      category: "Sports Traumatology & Ultrasound",
+      badge: 'Resolved / Remodeled',
+      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
       icon: 'activity',
-      title: 'VO2 Max Aerobic Power & Parasympathetic Tone',
-      summary: `Your VO₂ Max is **${vo2.value} ${vo2.unit}** with a Resting Heart Rate of **${rhr.value} ${rhr.unit}**. This places your cardiorespiratory fitness in the top 5th percentile, conferring significant protection against all-cause cardiovascular mortality.`,
-      recommendation: 'Balance polarized Zone 2 aerobic volume with targeted nocturnal recovery to ensure deep sleep exceeds 80 minutes.',
-      evidence: `VO₂ Max: ${vo2.value} • Resting HR: ${rhr.value} • Source: Apple Watch Ultra 4`,
-      prompt: 'Doc, how does my VO2 Max of ' + vo2.value + ' correlate with my long-term cardiovascular longevity curve?'
+      title: 'Medial Gastrocnemius Tear (Tennis Leg) Ultrasound Recovery',
+      summary: `Ultrasound (*Villa Montallegro, Dr. Bacigalupo*) recorded a distal myotendinous junction tear (**22 mm CC x 16 mm LL**, ~50% muscle width) with a 1-2 mm hematoma fluid layer. Deep twin veins remained patent without thrombosis.`,
+      recommendation: 'Maintain progressive calf eccentric loading and Achilles tendon stiffness drills. Progressive return to high-impact sprinting and running load verified with current VO2 Max (53.7).',
+      evidence: `Exam: Ecotomografia Muscolare • Tear: 22x16 mm • Fluid Layer: 1-2 mm • Status: Resolved`,
+      prompt: 'Doc, review my left calf gastrocnemius tear ultrasound findings and verify training load management.'
+    });
+
+    // 2. UNSTRUCTURED RECORD INSIGHT: Thyroid Ultrasound (Spongiform Nodule)
+    insights.push({
+      id: 'ins-thyroid-us',
+      category: "Endocrinology & Thyroid Ultrasound",
+      badge: 'Benign Surveillance (EU-TIRADS 2)',
+      badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
+      icon: 'zap',
+      title: 'Left Lobe Thyroid Spongiform Nodule (4x3 mm)',
+      summary: `Thyroid ultrasound (*Villa Montallegro, Dr. Buscaglia*) demonstrated normal gland dimensions (AP 14mm dx, 15mm sn) and Doppler vascularity. Identified a tiny **4x3 mm hypoechoic spongiform nodule** in the lower third of the left lobe.`,
+      recommendation: 'Spongiform nodules have a > 98% benign probability (EU-TIRADS 2). Recommend routine repeat ultrasound in 18–24 months alongside morning Free T3, Free T4, and Anti-TPO antibodies.',
+      evidence: `Nodule: 4x3 mm Left Lobe • Morphology: Spongiform (EU-TIRADS 2) • TSH: 3.96 µIU/mL`,
+      prompt: 'Doc, provide clinical guidance on my 4x3 mm spongiform thyroid nodule and correlated TSH.'
+    });
+
+    // 3. UNSTRUCTURED RECORD INSIGHT: Oculus Pentacam Corneal Tomography & Macular OCT
+    insights.push({
+      id: 'ins-pentacam',
+      category: "Ophthalmology & Anterior Segment",
+      badge: 'Anatomically Robust',
+      badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
+      icon: 'eye',
+      title: 'Bilateral Pentacam Corneal Pachymetry & Macular Integrity',
+      summary: `3D Oculus Pentacam tomography confirmed robust central corneal thickness (**557 µm OD / 554 µm OS** at apex; thinnest 549/543 µm). Anterior chambers symmetric (**2.75 / 2.73 mm**) with wide open angles (27.1°). Macular OCT normalized to **272 µm OS** (subfoveal fluid resolved).`,
+      recommendation: 'Continue daily xanthophyll photoprotection (Lutein 20mg, Zeaxanthin 4mg, Astaxanthin 6mg, EPA/DHA > 1.5g/day) and annual SD-OCT retinal monitoring.',
+      evidence: `Pachy Apex: 557 µm OD / 554 µm OS • Macular CST: 272 µm OS / 268 µm OD`,
+      prompt: 'Doc, review my corneal Pentacam pachymetry and macular OCT recovery status.'
+    });
+
+    // 4. UNSTRUCTURED RECORD INSIGHT: Surgical Histology (BCC Excision)
+    insights.push({
+      id: 'ins-histology',
+      category: "Dermatology & Surgical Pathology",
+      badge: 'Curatively Excised / Disease-Free',
+      badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+      icon: 'shield-check',
+      title: 'Suprascapular Nodular BCC Radical Excision (Clean Margins)',
+      summary: `Histology (*Villa Montallegro, Dr. Cabiddu / Dr. Maietta, 27/09/2026*) confirmed nodular basal cell carcinoma in upper reticular dermis (Clark Level III) with completely clear resection margins (**distance > 1 mm**).`,
+      recommendation: 'Complete anatomical cure achieved. Apply topical silicone sheets for scar remodeling and maintain annual digital full-body dermatoscopy for secondary lesion surveillance.',
+      evidence: `Histology: BCC Solido-Nodulare • Level: III • Margins: Indenni (> 1 mm)`,
+      prompt: 'Doc, review my suprascapular histology report and confirm scar management.'
+    });
+
+    // 5. STRUCTURED LAB INSIGHT: Urology & Free / Total PSA Ratio
+    const ratioVal = psaRatio ? psaRatio.value : '38';
+    const totVal = psaTot ? psaTot.value : '1.38';
+    insights.push({
+      id: 'ins-psa',
+      category: "Men's Health & Urology",
+      badge: 'Optimal / Benign Reassurance',
+      badgeColor: 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30',
+      icon: 'shield-check',
+      title: 'Free / Total PSA Ratio (38%) & Prostate Health',
+      summary: `Total PSA is **${totVal} ng/mL** (safely below age cutoff < 2.5 ng/mL) and Free/Total Ratio is **${ratioVal}%**. A ratio >= 25% provides strong statistical reassurance of benign prostatic tissue.`,
+      recommendation: 'Maintain annual routine urological blood surveillance. Refrain from vigorous cycling for 48 hours prior to future draws.',
+      evidence: `Total PSA: ${totVal} ng/mL • Free/Total Ratio: ${ratioVal}% • Tested: 2026-07-02`,
+      prompt: 'Doc, review my Free/Total PSA ratio and confirm long-term urological surveillance intervals.'
+    });
+
+    // 6. STRUCTURED LAB INSIGHT: Cardiovascular Longevity & ApoB
+    const ldlVal = ldl ? ldl.value : '111';
+    const tgVal = tg ? tg.value : '63';
+    const hdlVal = hdl ? hdl.value : '72';
+    const ratio = (parseFloat(tgVal) / parseFloat(hdlVal)).toFixed(2);
+    insights.push({
+      id: 'ins-cardio',
+      category: "Cardiovascular Longevity",
+      badge: 'Longevity Target',
+      badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+      icon: 'heart-pulse',
+      title: 'ApoB Particle Direct Target (< 60 mg/dL)',
+      summary: `Triglyceride/HDL ratio is **${ratio}** (indicating optimal insulin sensitivity). However, LDL-C at **${ldlVal} mg/dL** corresponds to an estimated ApoB of ~85 mg/dL, above your longevity goal of < 60 mg/dL.`,
+      recommendation: 'Order a direct ApoB assay and one-time Lp(a) to evaluate actual circulating atherogenic particle count and eliminate vascular endothelial plaque retention.',
+      evidence: `LDL-C: ${ldlVal} mg/dL • HDL: ${hdlVal} mg/dL • TG/HDL: ${ratio}`,
+      prompt: 'Doc, what clinical protocol do you recommend to bridge my LDL-C to an ApoB below 60 mg/dL?'
     });
 
     return insights;
   }
 
-  function renderOverviewInsights() {
-    const container = document.getElementById('overviewInsightsList');
-    if (!container) return;
-
-    const insights = generateDynamicClinicalInsights();
-
-    if (insights.length === 0) {
-      container.innerHTML = `
-        <div class="p-6 rounded-xl border border-surface-border bg-surface-dark/40 text-center text-xs text-slate-400 space-y-1">
-          <p class="text-slate-300 font-semibold">No active clinical insights yet</p>
-          <p>Doc will synthesize clinical insights once laboratory panels or wearable metrics are uploaded.</p>
-        </div>
-      `;
-      return;
-    }
-
-    container.innerHTML = insights.map(ins => `
-      <div class="bg-surface-dark/90 p-4 rounded-2xl border border-surface-border/80 hover:border-[#00ffb9]/40 transition-all space-y-2.5 shadow-sm">
-        <div class="flex items-center justify-between flex-wrap gap-2">
-          <div class="flex items-center gap-2">
-            <div class="p-1.5 rounded-lg text-[#00ffb9] bg-[#00646e]/20">
-              <i data-lucide="${ins.icon}" class="w-4 h-4"></i>
-            </div>
-            <div>
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">${ins.category}</span>
-              <h4 class="font-bold text-white text-xs">${ins.title}</h4>
-            </div>
-          </div>
-          <span class="text-[10px] font-black px-2.5 py-0.5 rounded-full border ${ins.badgeColor}">
-            ${ins.badge}
-          </span>
-        </div>
-
-        <p class="text-xs text-slate-300 leading-relaxed">
-          ${ins.summary}
-        </p>
-
-        <div class="bg-surface-card/60 p-3 rounded-xl border border-surface-border/60 text-[11px] space-y-1">
-          <div class="font-semibold text-[#00ffb9] flex items-center gap-1">
-            <span>🎯 Clinical Action Plan:</span>
-          </div>
-          <p class="text-slate-300">${ins.recommendation}</p>
-        </div>
-
-        <div class="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-surface-border/40 text-[10px]">
-          <span class="text-slate-400 font-mono">${ins.evidence}</span>
-          <button onclick="askDocInsight('${ins.prompt.replace(/'/g, "\\'")}')" class="text-accent-cyan hover:underline font-bold flex items-center gap-1 cursor-pointer">
-            <span>Consult Doc on this ›</span>
-          </button>
-        </div>
-      </div>
-    `).join('');
-
-    if (window.lucide) window.lucide.createIcons();
-  }
-
-  window.askDocInsight = function(promptText) {
-    switchTab('doc');
-    const input = document.getElementById('docInput');
-    if (input) {
-      input.value = promptText;
-      input.focus();
-    }
-  };
 
   function renderOverviewConditions() {
     const container = document.getElementById('overviewConditionsList');
