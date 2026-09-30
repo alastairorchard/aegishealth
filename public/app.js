@@ -7,9 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.lucide.createIcons();
   }
 
-  // Supabase Configuration
-  const SUPABASE_URL = 'https://bfwlzobdpbuippfbbjud.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_PcDpOFZptvEbE0wL8qDyLA_uqqkkf0A';
+  // Supabase Cloud Configuration
+  const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://bfwlzobdpbuippfbbjud.supabase.co';
+  const SUPABASE_ANON_KEY = localStorage.getItem('aegis_sb_key') || 'sb_publishable_PcDpOFZptvEbE0wL8qDyLA_uqqkkf0A';
 
   // Application State
   const state = {
@@ -34,13 +34,18 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // Initialize Supabase Client
-  if (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY) {
-    try {
-      state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    } catch (e) {
-      console.warn('Supabase client error:', e);
+  function initSupabaseClient() {
+    const url = localStorage.getItem('aegis_sb_url') || SUPABASE_URL;
+    const key = localStorage.getItem('aegis_sb_key') || SUPABASE_ANON_KEY;
+    if (window.supabase && url && key) {
+      try {
+        state.supabase = window.supabase.createClient(url, key);
+      } catch (e) {
+        console.warn('Supabase client error:', e);
+      }
     }
   }
+  initSupabaseClient();
 
   // ----------------------------------------------------------------------------
   // AUTHENTICATION & ACCESS CONTROL GATE
@@ -139,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       saveSession();
       await loadUserData();
+      setupRealtimeCloudListener();
       unlockApp();
     }
   });
@@ -169,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.currentUser = JSON.parse(raw);
         if (state.currentUser && state.currentUser.email) {
           await loadUserData();
+          setupRealtimeCloudListener();
           unlockApp();
           return;
         }
@@ -239,6 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveSession();
     initDocGreeting();
     saveUserData();
+    setupRealtimeCloudListener();
     unlockApp();
   });
 
@@ -327,7 +335,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const userKey = btoa(state.currentUser.email);
     const localKey = `aegis_data_${userKey}`;
     
-    // 1. Read from local cache first for instant UI response
     const saved = localStorage.getItem(localKey);
     if (saved) {
       try {
@@ -345,7 +352,6 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 2. Fetch latest unified Cloud Vault from Supabase (Cross-Device Sync)
     if (state.supabase) {
       try {
         const { data, error } = await state.supabase
@@ -365,7 +371,6 @@ document.addEventListener('DOMContentLoaded', () => {
           state.messages = cloudVault.messages || state.messages;
           state.reports = cloudVault.reports || state.reports;
 
-          // Update local cache
           localStorage.setItem(localKey, JSON.stringify(cloudVault));
           const lastSyncEl = document.getElementById('lastSyncTime');
           if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
@@ -399,10 +404,8 @@ document.addEventListener('DOMContentLoaded', () => {
       updated_at: new Date().toISOString()
     };
 
-    // Save locally
     localStorage.setItem(localKey, JSON.stringify(bundle));
 
-    // Save to Supabase Cloud for cross-device persistence
     if (state.supabase) {
       try {
         state.supabase
@@ -423,6 +426,28 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Cloud sync error:', err);
       }
     }
+  }
+
+  function setupRealtimeCloudListener() {
+    if (!state.supabase || !state.currentUser) return;
+    try {
+      state.supabase
+        .channel('aegis_cloud_sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'aegis_user_vaults', filter: `user_email=eq.${state.currentUser.email}` }, async (payload) => {
+          if (payload.new && payload.new.vault_payload) {
+            const cloud = payload.new.vault_payload;
+            state.biomarkers = cloud.biomarkers || state.biomarkers;
+            state.wearableMetrics = cloud.wearableMetrics || state.wearableMetrics;
+            state.labDocuments = cloud.labDocuments || state.labDocuments;
+            state.conditions = cloud.conditions || state.conditions;
+            state.insights = cloud.insights || state.insights;
+            state.messages = cloud.messages || state.messages;
+            state.reports = cloud.reports || state.reports;
+            renderAll();
+          }
+        })
+        .subscribe();
+    } catch(e) {}
   }
 
   function initDocGreeting() {
@@ -1022,7 +1047,7 @@ document.addEventListener('DOMContentLoaded', () => {
               addedCount++;
             }
           });
-          saveUserData();
+          await saveUserData();
           renderAll();
           alert(`Successfully imported ${addedCount} Apple Health telemetry records into your health vault!`);
           return;
@@ -1334,7 +1359,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Confirm and Save Verified Biomarkers
   if (btnConfirmLabSave) {
-    btnConfirmLabSave.addEventListener('click', () => {
+    btnConfirmLabSave.addEventListener('click', async () => {
       if (!state.pendingLabReview) return;
 
       const dateStr = state.pendingLabReview.extractedDate || new Date().toISOString().split('T')[0];
@@ -1392,10 +1417,10 @@ document.addEventListener('DOMContentLoaded', () => {
         created_at: new Date().toISOString()
       });
 
-      saveUserData();
+      await saveUserData();
       labReviewModal.classList.add('hidden');
       renderAll();
-      alert(`Success! ${verifiedBiomarkers.length} verified biomarker(s) saved to your health vault.`);
+      alert(`Success! ${verifiedBiomarkers.length} verified biomarker(s) saved to your cloud health vault.`);
     });
   }
 
@@ -1912,9 +1937,9 @@ document.addEventListener('DOMContentLoaded', () => {
           state.messages = data.messages || state.messages;
           state.reports = data.reports || state.reports;
 
-          saveUserData();
+          await saveUserData();
           renderAll();
-          alert('Health vault backup successfully restored on this device!');
+          alert('Health vault backup successfully restored and synced to cloud!');
         } else {
           alert('Invalid backup file format.');
         }
@@ -1925,10 +1950,79 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ----------------------------------------------------------------------------
+  // SUPABASE CLOUD SETUP MODAL HANDLERS
+  // ----------------------------------------------------------------------------
+  const btnOpenCloudConfig = document.getElementById('btnOpenCloudConfig');
+  const cloudConfigModal = document.getElementById('cloudConfigModal');
+  const btnCloseCloudConfig = document.getElementById('btnCloseCloudConfig');
+  const cloudConfigForm = document.getElementById('cloudConfigForm');
+  const cfgSupabaseUrl = document.getElementById('cfgSupabaseUrl');
+  const cfgSupabaseKey = document.getElementById('cfgSupabaseKey');
+  const btnTestCloudConnection = document.getElementById('btnTestCloudConnection');
+
+  if (btnOpenCloudConfig && cloudConfigModal) {
+    btnOpenCloudConfig.addEventListener('click', () => {
+      cfgSupabaseUrl.value = localStorage.getItem('aegis_sb_url') || SUPABASE_URL;
+      cfgSupabaseKey.value = localStorage.getItem('aegis_sb_key') || SUPABASE_ANON_KEY;
+      cloudConfigModal.classList.remove('hidden');
+    });
+  }
+
+  if (btnCloseCloudConfig) {
+    btnCloseCloudConfig.addEventListener('click', () => cloudConfigModal.classList.add('hidden'));
+  }
+
+  if (btnTestCloudConnection) {
+    btnTestCloudConnection.addEventListener('click', async () => {
+      const u = cfgSupabaseUrl.value.trim();
+      const k = cfgSupabaseKey.value.trim();
+      if (!u || !k) {
+        alert('Please provide both Project URL and Anon key.');
+        return;
+      }
+      btnTestCloudConnection.textContent = 'Testing...';
+      try {
+        const testClient = window.supabase.createClient(u, k);
+        const { data, error } = await testClient.from('aegis_user_vaults').select('user_email').limit(1);
+        if (error) {
+          if (error.code === '42P01' || error.message.includes('relation') || error.message.includes('does not exist')) {
+            alert('Connected to Supabase! Note: Please execute the CREATE TABLE SQL snippet in your Supabase SQL Editor to enable vault storage.');
+          } else {
+            alert('Supabase Notice: ' + error.message);
+          }
+        } else {
+          alert('🟢 Success! Supabase Cloud Database connected and ready to sync across all machines.');
+        }
+      } catch (err) {
+        alert('Connection error: ' + err.message);
+      } finally {
+        btnTestCloudConnection.textContent = 'Test Connection';
+      }
+    });
+  }
+
+  if (cloudConfigForm) {
+    cloudConfigForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const u = cfgSupabaseUrl.value.trim();
+      const k = cfgSupabaseKey.value.trim();
+      localStorage.setItem('aegis_sb_url', u);
+      localStorage.setItem('aegis_sb_key', k);
+
+      initSupabaseClient();
+      cloudConfigModal.classList.add('hidden');
+      await loadUserData();
+      setupRealtimeCloudListener();
+      renderAll();
+      alert('Supabase credentials saved! Live cloud sync is now active.');
+    });
+  }
+
   // Clear all data
   const btnClearData = document.getElementById('btnClearData');
   if (btnClearData) {
-    btnClearData.addEventListener('click', () => {
+    btnClearData.addEventListener('click', async () => {
       if (confirm('Clear all stored biomarkers and reset your health vault to a clean zero state?')) {
         state.biomarkers = [];
         state.wearableMetrics = [];
@@ -1939,7 +2033,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.messages = [];
         state.reports = [];
         initDocGreeting();
-        saveUserData();
+        await saveUserData();
         renderAll();
         alert('Vault cleared! You now have a clean zero-state dashboard.');
       }
