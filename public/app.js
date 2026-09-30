@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Supabase Configuration
   const SUPABASE_URL = 'https://bfwlzobdpbuippfbbjud.supabase.co';
-  const SUPABASE_ANON_KEY = '***';
+  const SUPABASE_ANON_KEY = 'sb_publishable_PcDpOFZptvEbE0wL8qDyLA_uqqkkf0A';
 
   // Application State
   const state = {
