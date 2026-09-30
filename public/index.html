@@ -557,19 +557,58 @@
             </button>
           </div>
 
-          <!-- Document Upload Box -->
-          <div id="dropZone" class="border-2 border-dashed border-surface-border hover:border-brand-500/50 bg-surface-dark/40 rounded-2xl p-8 text-center transition-all cursor-pointer">
-            <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.csv,.json,.png,.jpg,.jpeg,.xml,.zip,text/xml,application/xml">
-            <div class="inline-flex p-4 bg-brand-500/10 rounded-2xl text-brand-400 mb-3">
-              <i data-lucide="upload-cloud" class="w-8 h-8"></i>
+          <!-- Mobile-Reactive Camera & Document Ingestion Panel -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            <!-- Direct Camera Scan Target -->
+            <div id="btnStartCameraScan" class="bg-gradient-to-br from-[#00646e]/30 to-[#00a3a6]/10 border-2 border-dashed border-[#00a3a6]/60 hover:border-[#00ffb9] rounded-2xl p-6 flex flex-col items-center justify-center text-center transition-all cursor-pointer group shadow-lg">
+              <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" multiple>
+              <div class="w-14 h-14 rounded-2xl bg-[#00646e] text-[#00ffb9] flex items-center justify-center mb-3 group-hover:scale-110 shadow-lg shadow-[#00ffb9]/20 transition-transform">
+                <i data-lucide="camera" class="w-7 h-7"></i>
+              </div>
+              <h3 class="text-base font-black text-white group-hover:text-[#00ffb9] transition-colors">Photograph Paper Documents</h3>
+              <p class="text-xs text-slate-300 mt-1 max-w-xs">Use your phone camera to snap single or multi-page paper lab reports, pathology letters, and blood panels.</p>
+              <span class="mt-3 px-3 py-1 rounded-full text-[11px] font-black bg-[#00ffb9] text-[#000028] shadow-md flex items-center gap-1">
+                <span>📸</span> Open Camera Scanner
+              </span>
             </div>
-            <h3 class="text-sm font-semibold text-white mb-1">Click to Upload or Drag & Drop Documents</h3>
-            <p class="text-xs text-slate-400 max-w-md mx-auto">Supports PDF blood panels, pathology records, Apple Health JSON bundles, and Apple Watch ECG CSV files.</p>
-            <div class="mt-4 flex items-center justify-center gap-4 text-[11px] text-slate-400">
-              <span class="flex items-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5 text-brand-400"></i> Direct PDF Text Extraction</span>
-              <span class="flex items-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5 text-brand-400"></i> User Review & Verification</span>
-              <span class="flex items-center gap-1"><i data-lucide="check" class="w-3.5 h-3.5 text-brand-400"></i> Automatic Cross-Device Cloud Sync</span>
+
+            <!-- Upload Files & Dropzone -->
+            <div id="dropZone" class="border-2 border-dashed border-surface-border hover:border-[#00ffb9]/50 bg-surface-dark/40 rounded-2xl p-6 flex flex-col items-center justify-center text-center transition-all cursor-pointer group shadow-lg">
+              <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.csv,.json,.png,.jpg,.jpeg,.xml,.zip,text/xml,application/xml" multiple>
+              <div class="w-14 h-14 rounded-2xl bg-surface-dark text-slate-300 flex items-center justify-center mb-3 group-hover:text-white transition-colors">
+                <i data-lucide="upload-cloud" class="w-7 h-7"></i>
+              </div>
+              <h3 class="text-base font-black text-white group-hover:text-[#00ffb9] transition-colors">Upload Files & Apple Health</h3>
+              <p class="text-xs text-slate-400 mt-1 max-w-xs">Select PDF pathology reports, Apple Health XML / JSON vitals bundles, or ECG CSV files.</p>
+              <span class="mt-3 px-3 py-1 rounded-full text-[11px] font-bold bg-surface-dark text-slate-300 border border-surface-border">
+                📁 Browse Files
+              </span>
             </div>
+
+          </div>
+
+          <!-- Captured Pages Queue (Visible during/after snapping) -->
+          <div id="scannedPagesContainer" class="hidden bg-[#0c1429] border border-[#172447] rounded-2xl p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                  <i data-lucide="layers" class="w-4 h-4 text-[#00ffb9]"></i> Captured Document Pages (<span id="scannedPagesCount">0</span>)
+                </h4>
+                <p class="text-xs text-slate-400">Review your photos before running AI extraction</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button id="btnAddMorePages" class="px-3 py-1.5 bg-surface-dark hover:bg-surface-muted border border-surface-border rounded-xl text-xs font-bold text-white flex items-center gap-1 cursor-pointer">
+                  <span>📸</span> Add Page
+                </button>
+                <button id="btnProcessBatchPages" class="px-4 py-1.5 bg-gradient-to-r from-[#00646e] to-[#00a3a6] hover:from-[#007682] hover:to-[#00b5b8] text-white font-black rounded-xl text-xs shadow-lg shadow-[#00646e]/30 flex items-center gap-1.5 cursor-pointer">
+                  <span>⚡</span> Process & Extract Data
+                </button>
+              </div>
+            </div>
+
+            <!-- Thumbnail Grid -->
+            <div id="scannedThumbnailsGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3"></div>
           </div>
 
           <!-- Uploaded Documents Vault List -->
