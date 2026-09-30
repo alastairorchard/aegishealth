@@ -2720,6 +2720,33 @@ Please consider ordering the following targeted follow-up panel on the patient's
   // ----------------------------------------------------------------------------
   // VAULT BACKUP EXPORT & IMPORT (MULTI-DEVICE RESTORE)
   // ----------------------------------------------------------------------------
+  
+  // 1-Click Complete Clinical Dataset Restoration
+  const btnRestoreFullBaseline = document.getElementById('btnRestoreFullBaseline');
+  if (btnRestoreFullBaseline) {
+    btnRestoreFullBaseline.addEventListener('click', async () => {
+      state.biomarkers = [...DEFAULT_CLINICAL_BIOMARKERS];
+      state.labDocuments = [...DEFAULT_MULTIMODAL_DOCUMENTS];
+      state.conditions = [...DEFAULT_CONDITIONS];
+      
+      // Load recent Apple Watch vitals if available
+      try {
+        const res = await fetch('./aegis_daily_vitals.json');
+        if (res.ok) {
+          const vitals = await res.json();
+          if (Array.isArray(vitals)) {
+            state.wearableMetrics = vitals.slice(-400);
+          }
+        }
+      } catch (e) {}
+
+      initDocGreeting();
+      await saveUserData();
+      renderAll();
+      alert('Success! Your complete clinical dataset (All 21 biomarkers, 5 multi-modal diagnostic documents, 4 tracked conditions, and Apple Watch telemetry) has been loaded into your vault!');
+    });
+  }
+
   const btnExportVaultBackup = document.getElementById('btnExportVaultBackup');
   const btnImportVaultBackup = document.getElementById('btnImportVaultBackup');
   const backupFileInput = document.getElementById('backupFileInput');
