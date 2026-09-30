@@ -3108,30 +3108,6 @@ Please consider ordering the following targeted follow-up panel on the patient's
   }
 
   
-  // AegisHealth Dedicated Cloud Config Handlers
-  const sbUrlInput = document.getElementById('cfgAegisSbUrl');
-  const sbKeyInput = document.getElementById('cfgAegisSbKey');
-  const btnSaveAegisSb = document.getElementById('btnSaveAegisSb');
-
-  if (sbUrlInput) {
-    sbUrlInput.value = localStorage.getItem('aegis_sb_url') || 'https://motbikijmbuufadheykm.supabase.co';
-  }
-  if (sbKeyInput) {
-    sbKeyInput.value = localStorage.getItem('aegis_sb_key') || '';
-  }
-  if (btnSaveAegisSb) {
-    btnSaveAegisSb.addEventListener('click', async () => {
-      const u = (document.getElementById('cfgAegisSbUrl')?.value || '').trim();
-      const k = (document.getElementById('cfgAegisSbKey')?.value || '').trim();
-      if (u) localStorage.setItem('aegis_sb_url', u);
-      if (k) localStorage.setItem('aegis_sb_key', k);
-      initSupabaseClient();
-      await loadUserData();
-      renderAll();
-      alert('AegisHealth Supabase configuration saved!');
-    });
-  }
-
   const btnCopyToken = document.getElementById('btnCopyToken');
   if (btnCopyToken) {
     btnCopyToken.addEventListener('click', () => {
