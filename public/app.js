@@ -389,6 +389,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!state.currentUser) return;
     const userKey = btoa(state.currentUser.email);
     const localKey = `aegis_data_${userKey}`;
+
+    // Ensure wearable metrics are bounded to the latest 365 days of distinct daily points to stay strictly under 5MB browser quota
+    if (state.wearableMetrics && state.wearableMetrics.length > 500) {
+      const sorted = [...state.wearableMetrics].sort((a, b) => new Date(b.recorded_at || 0) - new Date(a.recorded_at || 0));
+      // Deduplicate by metric_type + date
+      const seen = new Set();
+      const pruned = [];
+      for (const w of sorted) {
+        const d = (w.recorded_at || '').substring(0, 10);
+        const k = `${w.metric_type}:${d}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          pruned.push(w);
+        }
+        if (pruned.length >= 400) break;
+      }
+      state.wearableMetrics = pruned;
+    }
     
     const bundle = {
       user_email: state.currentUser.email,
@@ -404,8 +422,20 @@ document.addEventListener('DOMContentLoaded', () => {
       updated_at: new Date().toISOString()
     };
 
-    localStorage.setItem(localKey, JSON.stringify(bundle));
-    localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle)); // Persistent global cache
+    try {
+      localStorage.setItem(localKey, JSON.stringify(bundle));
+      localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle));
+    } catch (quotaErr) {
+      console.warn('LocalStorage quota guard triggered, compressing telemetry:', quotaErr);
+      // Prune wearable metrics down to latest 180 days
+      bundle.wearableMetrics = (bundle.wearableMetrics || []).slice(0, 200);
+      try {
+        localStorage.setItem(localKey, JSON.stringify(bundle));
+        localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle));
+      } catch (e) {
+        console.error('Final storage error:', e);
+      }
+    }
 
     if (state.supabase) {
       try {
@@ -1087,12 +1117,15 @@ document.addEventListener('DOMContentLoaded', () => {
   async function processUploadedDocument(file) {
     const fn = file.name.toLowerCase();
 
-    // 1. APPLE HEALTH XML EXPORT (export.xml / .xml)
-    if (fn.endsWith('.xml')) {
+    // 1. APPLE HEALTH XML EXPORT (export.xml / .xml / .zip)
+    if (fn.endsWith('.xml') || fn.endsWith('.zip')) {
       try {
         let text = '';
-        if (file.size > 80 * 1024 * 1024) {
-          const slice = file.slice(0, 80 * 1024 * 1024);
+        // In Apple Health export.xml, recent Apple Watch Ultra 4 records (2024-2026) are in the LAST 150MB of the file!
+        if (file.size > 120 * 1024 * 1024) {
+          const tailSize = 120 * 1024 * 1024;
+          const startOffset = Math.max(0, file.size - tailSize);
+          const slice = file.slice(startOffset, file.size);
           text = await slice.text();
         } else {
           text = await file.text();
