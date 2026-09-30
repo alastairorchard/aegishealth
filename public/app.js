@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.removeItem('aegis_sb_url');
   } catch(e) {}
 
-  // Supabase Cloud Configuration (Verified Public Publishable Key)
-  const SUPABASE_URL = 'https://bfwlzobdpbuippfbbjud.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_PcDpOFZptvEbE0wL8qDyLA_uqqkkf0A';
+    // Supabase Cloud Configuration (Dedicated AegisHealth Project)
+  const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://motbikijmbuufadheykm.supabase.co';
+  const SUPABASE_ANON_KEY = localStorage.getItem('aegis_sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdGJpa2lqbWJ1dWZhZGhleWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1MDU4NDksImV4cCI6MjA1OTA4MTg0OX0.5E3jG46V6h51J7l1_q4_u8G-mDclm77oWsoQ';
 
   // Application State
   const state = {
@@ -3099,6 +3099,31 @@ Please consider ordering the following targeted follow-up panel on the patient's
         btnLoadAppleHealthDataset.innerHTML = '<i data-lucide="download-cloud" class="w-3.5 h-3.5"></i> Load Ingested Apple Watch Data';
         if (window.lucide) window.lucide.createIcons();
       }
+    });
+  }
+
+  
+  // AegisHealth Dedicated Cloud Config Handlers
+  const sbUrlInput = document.getElementById('cfgAegisSbUrl');
+  const sbKeyInput = document.getElementById('cfgAegisSbKey');
+  const btnSaveAegisSb = document.getElementById('btnSaveAegisSb');
+
+  if (sbUrlInput) {
+    sbUrlInput.value = localStorage.getItem('aegis_sb_url') || 'https://motbikijmbuufadheykm.supabase.co';
+  }
+  if (sbKeyInput) {
+    sbKeyInput.value = localStorage.getItem('aegis_sb_key') || '';
+  }
+  if (btnSaveAegisSb) {
+    btnSaveAegisSb.addEventListener('click', async () => {
+      const u = (document.getElementById('cfgAegisSbUrl')?.value || '').trim();
+      const k = (document.getElementById('cfgAegisSbKey')?.value || '').trim();
+      if (u) localStorage.setItem('aegis_sb_url', u);
+      if (k) localStorage.setItem('aegis_sb_key', k);
+      initSupabaseClient();
+      await loadUserData();
+      renderAll();
+      alert('AegisHealth Supabase configuration saved!');
     });
   }
 
