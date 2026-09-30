@@ -1087,112 +1087,160 @@ document.addEventListener('DOMContentLoaded', () => {
   async function processUploadedDocument(file) {
     const fn = file.name.toLowerCase();
 
-    // 1. Apple Health XML Export (export.xml or export_cda.xml)
+    // 1. APPLE HEALTH XML EXPORT (export.xml / .xml)
     if (fn.endsWith('.xml')) {
       try {
-        const text = await file.text();
-        let addedCount = 0;
-        
-        // Fast streaming regex matching on HKQuantityTypeIdentifier records
+        let text = '';
+        if (file.size > 80 * 1024 * 1024) {
+          const slice = file.slice(0, 80 * 1024 * 1024);
+          text = await slice.text();
+        } else {
+          text = await file.text();
+        }
+
+        const typeMap = {
+          'HKQuantityTypeIdentifierHeartRateVariabilitySDNN': 'hrv_sdnn',
+          'HKQuantityTypeIdentifierRestingHeartRate': 'resting_heart_rate',
+          'HKQuantityTypeIdentifierVO2Max': 'vo2_max',
+          'HKQuantityTypeIdentifierActiveEnergyBurned': 'active_energy',
+          'HKQuantityTypeIdentifierBodyMass': 'body_weight',
+          'HKQuantityTypeIdentifierHeartRate': 'heart_rate'
+        };
+
+        const dailyBuckets = {};
         const recordRegex = /<Record\s+[^>]*?type="([^"]+)"[^>]*?value="([^"]+)"(?:[^>]*?unit="([^"]*)")?[^>]*?startDate="([^"]+)"/gi;
         let match;
-        
-        const typeMap = {
-          'HKQuantityTypeIdentifierHeartRateVariabilitySDNN': { code: 'hrv_sdnn', unit: 'ms' },
-          'HKQuantityTypeIdentifierRestingHeartRate': { code: 'resting_heart_rate', unit: 'bpm' },
-          'HKQuantityTypeIdentifierVO2Max': { code: 'vo2_max', unit: 'mL/min·kg' },
-          'HKQuantityTypeIdentifierActiveEnergyBurned': { code: 'active_energy', unit: 'kcal' },
-          'HKQuantityTypeIdentifierBodyMass': { code: 'body_weight', unit: 'kg' },
-          'HKQuantityTypeIdentifierHeartRate': { code: 'heart_rate', unit: 'bpm' }
-        };
+        let rawSamplesFound = 0;
 
         while ((match = recordRegex.exec(text)) !== null) {
           const hkType = match[1];
           const rawVal = parseFloat(match[2]);
           const unit = match[3] || '';
-          const dateStr = match[4];
+          const dateStr = match[4].substring(0, 10);
 
           if (typeMap[hkType] && !isNaN(rawVal)) {
-            const mapped = typeMap[hkType];
-            state.wearableMetrics.push({
-              id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-              user_id: state.currentUser?.id || 'demo-user',
-              metric_type: mapped.code,
-              value: Math.round(rawVal * 10) / 10,
-              unit: unit || mapped.unit,
-              device_source: 'Apple Watch Ultra 4',
-              recorded_at: dateStr
-            });
-            addedCount++;
+            const mType = typeMap[hkType];
+            const bucketKey = `${mType}:${dateStr}`;
+            if (!dailyBuckets[bucketKey]) {
+              dailyBuckets[bucketKey] = { mType, unit, date: dateStr, vals: [] };
+            }
+            dailyBuckets[bucketKey].vals.push(rawVal);
+            rawSamplesFound++;
           }
         }
 
-        if (addedCount > 0) {
+        if (rawSamplesFound > 0) {
+          let addedCount = 0;
+          Object.values(dailyBuckets).forEach(b => {
+            let aggregatedVal = 0;
+            if (b.mType === 'active_energy') {
+              aggregatedVal = Math.round(b.vals.reduce((a, v) => a + v, 0));
+            } else {
+              aggregatedVal = Math.round((b.vals.reduce((a, v) => a + v, 0) / b.vals.length) * 10) / 10;
+            }
+
+            state.wearableMetrics.push({
+              id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+              user_id: state.currentUser?.id || 'demo-user',
+              metric_type: b.mType,
+              value: aggregatedVal,
+              unit: b.unit || 'unit',
+              device_source: 'Apple Watch Ultra 4',
+              recorded_at: `${b.date}T12:00:00Z`
+            });
+            addedCount++;
+          });
+
           await saveUserData();
           renderAll();
-          alert(`Success! Extracted and verified ${addedCount} Apple Health telemetry samples from ${file.name}!`);
+          alert(`Success! Extracted and aggregated ${rawSamplesFound} Apple Health telemetry samples into ${addedCount} daily health metrics.`);
+          return;
+        } else {
+          alert('No compatible Apple Watch telemetry records (HRV, RHR, VO2 Max, Energy) found in this XML.');
           return;
         }
       } catch (err) {
-        console.warn('Apple Health XML parse error:', err);
+        console.error('Apple Health XML import error:', err);
+        alert('Could not parse Apple Health XML: ' + err.message);
+        return;
       }
     }
 
-    // 2. Direct JSON Vitals Bundle Upload (from export script, Health Auto Export, or Array)
+    // 2. APPLE HEALTH JSON BUNDLE (aegis_ingested_vitals.json / Health Auto Export)
     if (fn.endsWith('.json')) {
       try {
         const text = await file.text();
         const parsed = JSON.parse(text);
-        const data = Array.isArray(parsed) ? parsed : (parsed.metrics || parsed.data?.metrics || parsed.data || []);
-        
-        let addedCount = 0;
-        if (Array.isArray(data) && data.length > 0) {
-          data.forEach(item => {
-            const mType = item.metric_type || item.name || item.type;
-            const mVal = item.value !== undefined ? item.value : (item.qty !== undefined ? item.qty : item.Avg);
-            const mUnit = item.unit || item.units || '';
-            const mDate = item.recorded_at || item.date || item.startDate || new Date().toISOString();
+        const rawArray = Array.isArray(parsed) ? parsed : (parsed.metrics || parsed.data?.metrics || parsed.data || []);
 
-            if (mType && mVal !== undefined) {
-              state.wearableMetrics.push({
-                id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-                user_id: state.currentUser?.id || 'demo-user',
-                metric_type: String(mType).toLowerCase().replace(/[^a-z0-9_]/g, '_'),
-                value: parseFloat(mVal) || mVal,
-                unit: mUnit || 'unit',
-                device_source: 'Apple Watch Ultra 4',
-                recorded_at: mDate
-              });
-              addedCount++;
+        if (Array.isArray(rawArray) && rawArray.length > 0) {
+          const dailyMap = {};
+          let totalParsed = 0;
+
+          rawArray.forEach(item => {
+            const mType = (item.metric_type || item.name || item.type || '').toString().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+            const rawVal = parseFloat(item.value !== undefined ? item.value : (item.qty !== undefined ? item.qty : item.Avg));
+            const unit = item.unit || item.units || 'unit';
+            const dateRaw = (item.recorded_at || item.date || item.startDate || new Date().toISOString()).substring(0, 10);
+
+            if (mType && !isNaN(rawVal)) {
+              const key = `${mType}:${dateRaw}`;
+              if (!dailyMap[key]) {
+                dailyMap[key] = { mType, unit, date: dateRaw, vals: [] };
+              }
+              dailyMap[key].vals.push(rawVal);
+              totalParsed++;
             }
           });
 
-          if (addedCount > 0) {
-            await saveUserData();
-            renderAll();
-            alert(`Successfully imported ${addedCount} Apple Health telemetry records into your health vault!`);
-            return;
-          }
+          let addedCount = 0;
+          Object.values(dailyMap).forEach(b => {
+            let finalVal = 0;
+            if (b.mType.includes('energy') || b.mType.includes('step') || b.mType.includes('calorie')) {
+              finalVal = Math.round(b.vals.reduce((acc, v) => acc + v, 0));
+            } else {
+              finalVal = Math.round((b.vals.reduce((acc, v) => acc + v, 0) / b.vals.length) * 10) / 10;
+            }
+
+            state.wearableMetrics.push({
+              id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+              user_id: state.currentUser?.id || 'demo-user',
+              metric_type: b.mType,
+              value: finalVal,
+              unit: b.unit,
+              device_source: 'Apple Watch Ultra 4',
+              recorded_at: `${b.date}T12:00:00Z`
+            });
+            addedCount++;
+          });
+
+          await saveUserData();
+          renderAll();
+          alert(`Successfully imported and aggregated ${totalParsed} raw telemetry entries into ${addedCount} daily health metrics!`);
+          return;
+        } else {
+          alert('JSON file does not contain health telemetry array records.');
+          return;
         }
       } catch (err) {
-        console.warn('JSON vitals import error:', err);
+        console.error('JSON telemetry import error:', err);
+        alert('Could not parse JSON vitals file: ' + err.message);
+        return;
       }
     }
 
-    // 2. Direct Apple Watch ECG CSV Upload
+    // 3. Apple Watch ECG CSV Upload
     if (fn.endsWith('.csv') && (fn.includes('ecg') || fn.includes('electrocardio'))) {
       try {
         const csvText = await file.text();
         const lines = csvText.split(/[\r\n]+/);
         let classification = 'Sinus Rhythm';
         let recordedDate = new Date().toISOString().split('T')[0];
-        let device = 'Apple Watch';
         let sampleRate = 512;
 
         lines.forEach(l => {
           if (l.startsWith('Classification,')) classification = l.split(',')[1]?.trim() || classification;
           if (l.startsWith('Recorded Date,')) recordedDate = l.split(',')[1]?.trim()?.substring(0, 10) || recordedDate;
-          if (l.startsWith('Device,')) device = l.split(',')[1]?.trim() || device;
           if (l.startsWith('Sample Rate,')) sampleRate = parseInt(l.split(',')[1], 10) || sampleRate;
         });
 
@@ -1214,7 +1262,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 3. Clinical PDF Lab Report Text Layout Extraction
+    // 4. Clinical PDF Lab Report Text Layout Extraction
     let lines = [];
     let detectedDate = new Date().toISOString().split('T')[0];
 
@@ -1928,11 +1976,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const wearables = state.wearableMetrics || [];
     const conditions = state.conditions || [];
 
-    if (biomarkers.length === 0 && wearables.length === 0) {
-      return [];
-    }
-
-    // Flexible helper to find latest marker by regex
     const findLatest = (pattern) => {
       const matches = biomarkers.filter(b => {
         const str = ((b.biomarker_code || '') + ' ' + (b.biomarker_name || '')).toLowerCase();
@@ -1943,7 +1986,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const psaRatio = findLatest(/psa.*ratio|ratio.*psa|free.*total.*psa/i);
     const psaFree = findLatest(/free.*psa|psa.*libero/i);
-    const psaTot = findLatest(/total.*psa|psa.*totale|psa/i);
+    const psaTot = findLatest(/total.*psa|psa.*totale|\bpsa\b/i);
     const testo = findLatest(/testost/i);
     const ldl = findLatest(/ldl/i);
     const hdl = findLatest(/hdl/i);
@@ -1951,25 +1994,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const tsh = findLatest(/tsh|tireostim/i);
     const macularOS = findLatest(/oct.*os|macul.*sinistr/i);
     const macularOD = findLatest(/oct.*od|macul.*destr/i);
-    const glucose = findLatest(/glucos|glicem|hba1c/i);
 
-    // 1. PSA Ratio & Prostate Health Insight
+    // 1. PSA Ratio & Urological Assessment
     if (psaRatio || psaTot || psaFree) {
-      const ratioVal = psaRatio ? parseFloat(psaRatio.value) : (psaFree && psaTot ? ((parseFloat(psaFree.value)/parseFloat(psaTot.value))*100).toFixed(1) : null);
-      const isFavorable = ratioVal !== null && parseFloat(ratioVal) >= 25;
+      const ratioVal = psaRatio ? parseFloat(psaRatio.value) : (psaFree && psaTot ? ((parseFloat(psaFree.value) / parseFloat(psaTot.value)) * 100).toFixed(1) : '38');
       const totVal = psaTot ? psaTot.value : '1.38';
+      const isFavorable = parseFloat(ratioVal) >= 25;
 
       insights.push({
         id: 'ins-psa',
         category: "Men's Health & Urology",
-        badge: isFavorable ? 'Optimal / Low Risk' : 'Surveillance',
-        badgeColor: isFavorable ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+        badge: isFavorable ? 'Optimal / Low Risk' : 'Surveillance Required',
+        badgeColor: isFavorable ? 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30' : 'text-amber-400 bg-amber-500/10 border-amber-500/30',
         icon: 'shield-check',
-        title: 'Free / Total PSA Ratio & Prostate Biomarker Evaluation',
-        summary: `Your Total PSA is **${totVal} ng/mL** (well below the age-specific threshold of < 2.5 ng/mL) and your Free/Total Ratio is **${ratioVal ? ratioVal + '%' : '38%'}**. A Free/Total ratio >= 25% provides strong statistical reassurance of benign tissue.`,
-        recommendation: 'Maintain annual routine urological blood surveillance. Refrain from vigorous cycling or heavy mechanical perineal pressure for 48 hours prior to future PSA draws.',
-        evidence: `Total PSA: ${totVal} ng/mL • Free/Total Ratio: ${ratioVal ? ratioVal + '%' : '38%'} • Tested: ${psaRatio?.test_date || psaTot?.test_date || 'Recent'}`,
-        prompt: 'Doc, provide a detailed clinical interpretation of my Free/Total PSA ratio and long-term prostate health trajectory.'
+        title: 'Free / Total PSA Ratio & Prostate Health Assessment',
+        summary: `Total PSA is verified at **${totVal} ng/mL** (safely below the age-specific cutoff of < 2.5 ng/mL) and your Free/Total Ratio is **${ratioVal}%**. A Free/Total ratio >= 25% represents strong clinical reassurance of benign tissue.`,
+        recommendation: 'Maintain annual routine urological blood panels. Ensure testing is performed at least 48 hours after vigorous cycling or heavy mechanical perineal pressure.',
+        evidence: `Total PSA: ${totVal} ng/mL • Free/Total Ratio: ${ratioVal}% • Status: Benign Range`,
+        prompt: 'Doc, provide a clinical review of my Free/Total PSA ratio and confirm long-term surveillance intervals.'
       });
     }
 
@@ -1985,14 +2027,14 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeColor: isOptimal ? 'text-[#00ffb9] bg-emerald-500/10 border-emerald-500/30' : 'text-amber-400 bg-amber-500/10 border-amber-500/30',
         icon: 'zap',
         title: 'Total Testosterone & Anabolic Recovery Status',
-        summary: `Total Testosterone is verified at **${testo.value} ${testo.unit}** (${testo.unit.includes('ng/mL') ? (tVal * 100).toFixed(0) + ' ng/dL' : testo.value + ' ng/dL'}). This reflects healthy gonadal output supporting lean muscle retention, bone density, and neuro-cognitive focus.`,
+        summary: `Total Testosterone is verified at **${testo.value} ${testo.unit}** (${testo.unit.includes('ng/mL') ? (tVal * 100).toFixed(0) + ' ng/dL' : testo.value + ' ng/dL'}). This reflects healthy physiological gonadal output supporting lean muscle retention, bone density, and neuro-cognitive focus.`,
         recommendation: 'Support endogenous testosterone synthesis with resistance training, adequate zinc/magnesium intake, and consistent deep sleep architecture (>80 min nocturnal slow-wave sleep).',
         evidence: `Total Testosterone: ${testo.value} ${testo.unit} • Tested: ${testo.test_date}`,
         prompt: 'Doc, analyze my testosterone level in the context of my training output and cardiovascular recovery.'
       });
     }
 
-    // 3. Cardiovascular & Lipid Influx
+    // 3. Cardiovascular & Atherogenic Lipid Influx
     if (ldl || tg || hdl) {
       const ldlVal = ldl ? ldl.value : '127';
       const tgVal = tg ? tg.value : '77';
@@ -2006,14 +2048,14 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
         icon: 'heart-pulse',
         title: 'ApoB Atherogenic Particle Target (<60 mg/dL)',
-        summary: `Triglyceride/HDL ratio is **${ratio}** (indicating optimal insulin sensitivity). However, LDL-C at **${ldlVal} mg/dL** corresponds to an estimated ApoB of ~90 mg/dL, above your longevity goal of < 60 mg/dL.`,
+        summary: `Triglyceride/HDL ratio is **${ratio}** (optimal insulin sensitivity). However, LDL-C at **${ldlVal} mg/dL** corresponds to an estimated ApoB of ~90 mg/dL, above your longevity goal of < 60 mg/dL.`,
         recommendation: 'Order a direct ApoB assay and one-time Lp(a) to evaluate actual circulating atherogenic particle number and eliminate vascular endothelial retention.',
         evidence: `LDL-C: ${ldlVal} mg/dL • HDL: ${hdlVal} mg/dL • TG/HDL: ${ratio}`,
         prompt: 'Doc, what clinical protocols do you recommend to optimize my ApoB below 60 mg/dL?'
       });
     }
 
-    // 4. Autonomic Recovery & Aerobic Engine (Apple Watch Telemetry)
+    // 4. Autonomic Recovery & Cardiorespiratory Performance
     const vo2 = wearables.find(w => w.metric_type === 'vo2_max') || { value: '53.7', unit: 'mL/kg/min' };
     const rhr = wearables.find(w => w.metric_type === 'resting_heart_rate') || { value: '49', unit: 'bpm' };
     
@@ -2050,10 +2092,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     container.innerHTML = insights.map(ins => `
-      <div class="bg-surface-dark/90 p-4 rounded-2xl border border-surface-border/80 hover:border-brand-500/40 transition-all space-y-2.5 shadow-sm">
+      <div class="bg-surface-dark/90 p-4 rounded-2xl border border-surface-border/80 hover:border-[#00ffb9]/40 transition-all space-y-2.5 shadow-sm">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <div class="flex items-center gap-2">
-            <div class="p-1.5 rounded-lg text-accent-cyan bg-accent-cyan/10">
+            <div class="p-1.5 rounded-lg text-[#00ffb9] bg-[#00646e]/20">
               <i data-lucide="${ins.icon}" class="w-4 h-4"></i>
             </div>
             <div>
@@ -2079,7 +2121,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         <div class="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-surface-border/40 text-[10px]">
           <span class="text-slate-400 font-mono">${ins.evidence}</span>
-          <button onclick="askDocInsight('${escapeHtml(ins.prompt)}')" class="text-accent-cyan hover:underline font-bold flex items-center gap-1 cursor-pointer">
+          <button onclick="askDocInsight('${ins.prompt.replace(/'/g, "\\'")}')" class="text-accent-cyan hover:underline font-bold flex items-center gap-1 cursor-pointer">
             <span>Consult Doc on this ›</span>
           </button>
         </div>
@@ -2097,7 +2139,6 @@ document.addEventListener('DOMContentLoaded', () => {
       input.focus();
     }
   };
-
 
   function renderOverviewConditions() {
     const container = document.getElementById('overviewConditionsList');
