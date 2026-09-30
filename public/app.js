@@ -7,9 +7,15 @@ document.addEventListener('DOMContentLoaded', () => {
     window.lucide.createIcons();
   }
 
-  // Supabase Cloud Configuration (Unified Production Supabase Project)
-  const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://bfwlzobdpbuippfbbjud.supabase.co';
-  const SUPABASE_ANON_KEY = localStorage.getItem('aegis_sb_key') || 'sb_publishable_PcDpOFZptvEbE0wL8qDyLA_uqqkkf0A';
+  // Purge any legacy secret key from browser cache
+  try {
+    localStorage.removeItem('aegis_sb_key');
+    localStorage.removeItem('aegis_sb_url');
+  } catch(e) {}
+
+  // Supabase Cloud Configuration (Verified Public Publishable Key)
+  const SUPABASE_URL = 'https://bfwlzobdpbuippfbbjud.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_PcDpOFZptvEbE0wL8qDyLA_uqqkkf0A';
 
   // Application State
   const state = {
@@ -154,13 +160,34 @@ document.addEventListener('DOMContentLoaded', () => {
           return;
         }
       } else {
-        // Supabase Login
+        // Supabase Login (with auto-create fallback on first login)
         authSubmitText.textContent = 'Signing In...';
         try {
-          const { data, error } = await state.supabase.auth.signInWithPassword({
+          let { data, error } = await state.supabase.auth.signInWithPassword({
             email: email,
             password: userKey
           });
+
+          // If user does not exist yet or credentials failed, automatically create account & sign in
+          if (error && (error.message.toLowerCase().includes('invalid login') || error.message.toLowerCase().includes('user not found'))) {
+            authSubmitText.textContent = 'Creating Account & Signing In...';
+            const { data: upData, error: upErr } = await state.supabase.auth.signUp({
+              email: email,
+              password: userKey,
+              options: { data: { fullName: email.split('@')[0].replace(/[._]/g, ' ') } }
+            });
+
+            if (!upErr || upErr.message.toLowerCase().includes('already registered')) {
+              const { data: logData, error: logErr } = await state.supabase.auth.signInWithPassword({
+                email: email,
+                password: userKey
+              });
+              if (!logErr && logData?.user) {
+                data = logData;
+                error = null;
+              }
+            }
+          }
 
           if (error) {
             showAuthError(error.message);
