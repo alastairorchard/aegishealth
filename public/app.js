@@ -483,8 +483,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const userKey = btoa(userEmail);
     const localKey = `aegis_data_${userKey}`;
     
-    // 1. Read local storage cache first for instant UI response
-    const saved = localStorage.getItem(localKey) || localStorage.getItem('aegis_data_global_vault');
+    // Check if user has explicitly wiped vault
+    const isWiped = localStorage.getItem(`aegis_wiped_${userKey}`);
+    if (isWiped === 'true') {
+      state.biomarkers = [];
+      state.wearableMetrics = [];
+      state.labDocuments = [];
+      state.conditions = [];
+      state.messages = [];
+      state.reports = [];
+      initDocGreeting();
+      return;
+    }
+
+    // 1. Read local storage cache
+    const saved = localStorage.getItem(localKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -513,9 +526,6 @@ document.addEventListener('DOMContentLoaded', () => {
           mergeCloudWithLocal(cloud);
           const lastSyncEl = document.getElementById('lastSyncTime');
           if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
-        } else if (state.biomarkers.length > 0) {
-          // If cloud is empty but local has data, immediately push to cloud
-          await saveUserData();
         }
       } catch (err) {
         console.warn('Supabase cloud fetch error:', err);
