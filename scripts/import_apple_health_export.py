@@ -13,8 +13,8 @@ from datetime import datetime
 import urllib.request
 import urllib.error
 
-SUPABASE_URL = "https://bfwlzobdpbuippfbbjud.supabase.co"
-SUPABASE_ANON_KEY = "***"
+SUPABASE_URL = "https://motbikijmbuufadheykm.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdGJpa2lqbWJ1dWZhZGhleWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NjE5NTQsImV4cCI6MjEwNjMzNzk1NH0.59_oyRSpL7OJ8MaG2FOCIWwV4a0N1zWNqClm77oWsoQ"
 
 def parse_apple_health_export(xml_path, user_id='alastairorchard@icloud.com', sync_supabase=True):
     if not os.path.exists(xml_path):
