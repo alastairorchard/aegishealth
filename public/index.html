@@ -798,8 +798,13 @@
                 </div>
               </div>
 
-              <div class="bg-surface-dark/80 p-3.5 rounded-xl border border-surface-border space-y-1.5 text-slate-300">
-                <div class="font-semibold text-white">Supported Apple Watch Telemetry:</div>
+              <div class="bg-surface-dark/80 p-3.5 rounded-xl border border-surface-border space-y-2 text-slate-300">
+                <div class="flex items-center justify-between">
+                  <span class="font-semibold text-white">Apple Watch Ultra 4 Dataset</span>
+                  <button id="btnLoadAppleHealthDataset" class="px-3 py-1.5 bg-[#00646e] hover:bg-[#00a3a6] text-[#00ffb9] hover:text-white font-bold rounded-lg text-xs transition flex items-center gap-1 cursor-pointer">
+                    <i data-lucide="download-cloud" class="w-3.5 h-3.5"></i> Load Ingested Apple Watch Data
+                  </button>
+                </div>
                 <div class="grid grid-cols-2 gap-1 text-[11px] text-slate-400">
                   <div>• HRV (SDNN)</div>
                   <div>• Resting Heart Rate</div>

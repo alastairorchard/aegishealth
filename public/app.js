@@ -2380,6 +2380,33 @@ document.addEventListener('DOMContentLoaded', () => {
   
   
 
+  
+  // 1-Click Load Ingested Apple Watch Dataset
+  const btnLoadAppleHealthDataset = document.getElementById('btnLoadAppleHealthDataset');
+  if (btnLoadAppleHealthDataset) {
+    btnLoadAppleHealthDataset.addEventListener('click', async () => {
+      try {
+        btnLoadAppleHealthDataset.textContent = 'Loading...';
+        const res = await fetch('./aegis_daily_vitals.json');
+        if (!res.ok) throw new Error('Could not load aegis_daily_vitals.json');
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          // Take the latest 400 daily metrics to fit cleanly into active state
+          const recentData = data.slice(-400);
+          state.wearableMetrics = recentData;
+          await saveUserData();
+          renderAll();
+          alert(`Success! Loaded ${recentData.length} verified daily Apple Watch Ultra 4 records into your health vault.`);
+        }
+      } catch (err) {
+        alert('Error loading dataset: ' + err.message);
+      } finally {
+        btnLoadAppleHealthDataset.innerHTML = '<i data-lucide="download-cloud" class="w-3.5 h-3.5"></i> Load Ingested Apple Watch Data';
+        if (window.lucide) window.lucide.createIcons();
+      }
+    });
+  }
+
   const btnCopyToken = document.getElementById('btnCopyToken');
   if (btnCopyToken) {
     btnCopyToken.addEventListener('click', () => {
