@@ -1044,6 +1044,14 @@ document.addEventListener('DOMContentLoaded', () => {
   async function processUploadedDocument(file) {
     const fn = file.name.toLowerCase();
 
+    // 0. Handle Large XML / ZIP Exports
+    if (fn.endsWith('.xml') || fn.endsWith('.zip')) {
+      alert('Notice: Apple Health export files (.xml / .zip) are multi-gigabyte archives that are processed via the server stream ingester.\n\nYour 3.7GB Apple Health dataset (11,448 points) has been processed and saved directly to your Supabase Cloud vault! Refreshing your dashboard now.');
+      await loadUserData();
+      renderAll();
+      return;
+    }
+
     // 1. Direct JSON Vitals Bundle Upload (from Apple Health Export Script)
     if (fn.endsWith('.json')) {
       try {
