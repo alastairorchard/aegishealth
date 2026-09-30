@@ -2865,32 +2865,46 @@ Please consider ordering the following targeted follow-up panel on the patient's
     btnRestoreFullBaseline.addEventListener('click', performFullBaselineRestore);
   }
 
-  // Clear data / Reset Handler
+  // Clear data / Reset Handler (Strict True Zero State Wipe)
   const btnClearData = document.getElementById('btnClearData');
   if (btnClearData) {
     btnClearData.addEventListener('click', async () => {
-      const confirmReset = confirm('Choose reset option:\n\n• Click "OK" to reload the Complete Verified Clinical Baseline (All labs, documents, conditions & vitals).\n• Click "Cancel" to clear everything to an empty zero-state.');
-      
-      const userKey = state.currentUser ? btoa(state.currentUser.email) : '';
-      if (userKey) localStorage.removeItem(`aegis_data_${userKey}`);
-      localStorage.removeItem('aegis_data_global_vault');
+      const confirmWipe = confirm('⚠️ Reset & Clear All Data?\n\nThis will permanently delete all biomarkers, documents, conditions, and vitals from both your browser and the Supabase cloud database.');
+      if (!confirmWipe) return;
 
-      if (confirmReset) {
-        await performFullBaselineRestore();
-      } else {
-        state.biomarkers = [];
-        state.wearableMetrics = [];
-        state.labDocuments = [];
-        state.conditions = [];
-        state.conditionTags = [];
-        state.insights = [];
-        state.messages = [];
-        state.reports = [];
-        initDocGreeting();
-        await saveUserData();
-        renderAll();
-        alert('Vault reset to an empty zero-state.');
+      const userEmail = state.currentUser ? state.currentUser.email : 'alastairorchard@icloud.com';
+      const userKey = btoa(userEmail);
+
+      // 1. Wipe all local storage keys & set explicit wiped flag
+      localStorage.removeItem(`aegis_data_${userKey}`);
+      localStorage.removeItem('aegis_data_global_vault');
+      localStorage.setItem(`aegis_wiped_${userKey}`, 'true');
+
+      // 2. Wipe Supabase Cloud Database
+      if (state.supabase) {
+        try {
+          await state.supabase
+            .from('aegis_user_vaults')
+            .delete()
+            .eq('user_email', userEmail);
+        } catch (e) {
+          console.warn('Supabase cloud wipe notice:', e);
+        }
       }
+
+      // 3. Reset in-memory state to true empty arrays (0)
+      state.biomarkers = [];
+      state.wearableMetrics = [];
+      state.labDocuments = [];
+      state.conditions = [];
+      state.conditionTags = [];
+      state.insights = [];
+      state.messages = [];
+      state.reports = [];
+
+      initDocGreeting();
+      renderAll();
+      alert('🗑️ Vault Cleared: Your dashboard is now at a clean zero state (0 biomarkers, 0 documents, 0 vitals).');
     });
   }
 
