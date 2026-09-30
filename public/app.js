@@ -2546,6 +2546,73 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
 
+  function renderOverviewInsights() {
+    const container = document.getElementById('overviewInsightsList');
+    if (!container) return;
+
+    const insights = generateDynamicClinicalInsights();
+
+    if (!insights || insights.length === 0) {
+      container.innerHTML = `
+        <div class="p-6 rounded-xl border border-surface-border bg-surface-dark/40 text-center text-xs text-slate-400 space-y-1">
+          <p class="text-slate-300 font-semibold">No active clinical insights yet</p>
+          <p>Doc will synthesize clinical insights once laboratory panels or Apple Watch metrics are uploaded.</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = insights.map(ins => `
+      <div class="bg-surface-dark/90 p-4.5 rounded-2xl border border-surface-border/80 hover:border-[#00ffb9]/40 transition-all space-y-2.5 shadow-md">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <div class="p-1.5 rounded-lg text-[#00ffb9] bg-[#00646e]/20">
+              <i data-lucide="${ins.icon || 'activity'}" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">${ins.category}</span>
+              <h4 class="font-bold text-white text-xs">${ins.title}</h4>
+            </div>
+          </div>
+          <span class="text-[10px] font-black px-2.5 py-0.5 rounded-full border ${ins.badgeColor}">
+            ${ins.badge}
+          </span>
+        </div>
+
+        <p class="text-xs text-slate-300 leading-relaxed">
+          ${ins.summary}
+        </p>
+
+        <div class="bg-surface-card/60 p-3 rounded-xl border border-surface-border/60 text-[11px] space-y-1">
+          <div class="font-semibold text-[#00ffb9] flex items-center gap-1">
+            <span>🎯 Clinical Action Plan:</span>
+          </div>
+          <p class="text-slate-300">${ins.recommendation}</p>
+        </div>
+
+        <div class="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-surface-border/40 text-[10px]">
+          <span class="text-slate-400 font-mono">${ins.evidence}</span>
+          <button onclick="askDocInsight('${(ins.prompt || '').replace(/'/g, "\\'")}')" class="text-accent-cyan hover:underline font-bold flex items-center gap-1 cursor-pointer">
+            <span>Consult Doc on this ›</span>
+          </button>
+        </div>
+      </div>
+    `).join('');
+
+    if (window.lucide) window.lucide.createIcons();
+  }
+
+  window.askDocInsight = function(promptText) {
+    switchTab('doc');
+    const input = document.getElementById('docInput');
+    if (input) {
+      input.value = promptText;
+      input.focus();
+    }
+  };
+
+
+
   function renderOverviewConditions() {
     const container = document.getElementById('overviewConditionsList');
     if (!container) return;
