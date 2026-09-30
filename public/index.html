@@ -779,6 +779,17 @@
 
             <div class="space-y-3 text-xs">
               <div>
+                <label class="block font-semibold text-slate-300 mb-1">OpenClaw Doc Agent Endpoint URL</label>
+                <div class="flex gap-2">
+                  <input type="text" id="docAgentEndpointInput" placeholder="http://100.68.142.44:3000/api/doc/chat" class="flex-1 bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-slate-300 font-mono text-[11px] focus:outline-none focus:border-brand-500">
+                  <button id="btnSaveDocEndpoint" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl text-xs cursor-pointer transition">
+                    Save
+                  </button>
+                </div>
+                <p class="text-[10px] text-slate-500 mt-1">Set to <code>http://100.68.142.44:3000/api/doc/chat</code> (Tailscale) or <code>/api/doc/chat</code> (Local).</p>
+              </div>
+
+              <div>
                 <label class="block font-semibold text-slate-300 mb-1">Your Personal Ingestion Webhook URL</label>
                 <div class="flex gap-2">
                   <input type="text" id="webhookUrlInput" readonly class="flex-1 bg-surface-dark border border-surface-border rounded-xl px-3 py-2 text-slate-300 font-mono text-[11px]">

@@ -1566,7 +1566,14 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         };
 
-        const res = await fetch('/api/doc/chat', {
+        // Determine Doc Agent Endpoint (local or configured remote/tailscale URL)
+        let endpoint = localStorage.getItem('aegis_doc_endpoint') || '/api/doc/chat';
+        if (window.location.hostname.includes('github.io') && endpoint === '/api/doc/chat') {
+          // If on static GitHub Pages, point to live Tailscale / local node by default
+          endpoint = 'http://100.68.142.44:3000/api/doc/chat';
+        }
+
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -1577,39 +1584,29 @@ document.addEventListener('DOMContentLoaded', () => {
         // Remove typing placeholder
         state.messages = state.messages.filter(m => m.id !== tempId);
 
-        let finalReply = '';
-        if (data && data.reply) {
-          finalReply = data.reply;
+        if (res.ok && data && data.reply) {
+          state.messages.push({
+            sender_role: 'doc_agent',
+            content: data.reply,
+            created_at: new Date().toISOString()
+          });
         } else {
-          finalReply = 'Doc Agent consultation completed.';
+          const errMsg = data?.message || `Server returned HTTP ${res.status}`;
+          state.messages.push({
+            sender_role: 'doc_agent',
+            content: `⚠️ **OpenClaw Doc Agent Error:** ${errMsg}\n\nPlease check your Doc Agent endpoint in **Devices & Cloud** tab.`,
+            created_at: new Date().toISOString()
+          });
         }
-
-        state.messages.push({
-          sender_role: 'doc_agent',
-          content: finalReply,
-          created_at: new Date().toISOString()
-        });
 
       } catch (err) {
-        console.warn('Doc API call failed, synthesizing clinical response:', err);
+        console.error('Doc API network error:', err);
         state.messages = state.messages.filter(m => m.id !== tempId);
         
-        // Clinical synthesis fallback if server is offline
-        const lower = val.toLowerCase();
-        let fallbackReply = '';
-        if (lower.includes('apob') || lower.includes('cholesterol') || lower.includes('heart')) {
-          fallbackReply = `Based on your longitudinal lipid telemetry, your ApoB is currently at **54 mg/dL** (optimal longevity zone < 60 mg/dL).\n\n### Clinical Guidance:\n1. Atherogenic particle exposure remains extremely low.\n2. Continue current nutritional and exercise habits; test hs-CRP annually to monitor systemic vascular inflammation.`;
-        } else if (lower.includes('testo') || lower.includes('hormone')) {
-          fallbackReply = `Reviewing your endocrine panel: Total Testosterone is **695 ng/dL** with Free Testosterone at **16.8 pg/mL**.\n\nOptimal androgenic status supported by continuous Apple Watch sleep telemetry (82m Deep Sleep average).`;
-        } else if (lower.includes('eye') || lower.includes('macular') || lower.includes('oct')) {
-          fallbackReply = `Ophthalmology status: Left Eye (OS) macular thickness normalized from 298 µm down to **272 µm** with acute subfoveal fluid **Resolved**.\n\nContinue daily macular antioxidant protection (Lutein 20mg, Zeaxanthin 4mg, Astaxanthin 6mg, EPA/DHA > 2g/day).`;
-        } else {
-          fallbackReply = `Thank you for your inquiry. Analyzing your verified clinical dossier:\n\nYour ApoB (54 mg/dL), Total Testosterone (695 ng/dL), and retinal architecture (268/272 µm) are in optimal alignment. Please feel free to ask about any specific lab panel or wearable vital stream.`;
-        }
-
+        const endpoint = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'http://100.68.142.44:3000/api/doc/chat' : '/api/doc/chat');
         state.messages.push({
           sender_role: 'doc_agent',
-          content: fallbackReply,
+          content: `⚠️ **Could not connect to OpenClaw Doc Agent:**\n\n- **Target Endpoint:** \`${endpoint}\`\n- **Error:** ${err.message}\n\n*To fix:* Ensure the AegisHealth backend server is running on this machine (or via Tailscale IP \`100.68.142.44:3000\`), or update your endpoint URL in the **Devices & Cloud** tab.`,
           created_at: new Date().toISOString()
         });
       }
@@ -2025,6 +2022,22 @@ document.addEventListener('DOMContentLoaded', () => {
       input.select();
       navigator.clipboard.writeText(input.value);
       alert('Webhook URL copied to clipboard!');
+    });
+  }
+
+  
+  const endpointInput = document.getElementById('docAgentEndpointInput');
+  const btnSaveDocEndpoint = document.getElementById('btnSaveDocEndpoint');
+  if (endpointInput) {
+    endpointInput.value = localStorage.getItem('aegis_doc_endpoint') || (window.location.hostname.includes('github.io') ? 'http://100.68.142.44:3000/api/doc/chat' : '/api/doc/chat');
+  }
+  if (btnSaveDocEndpoint) {
+    btnSaveDocEndpoint.addEventListener('click', () => {
+      const val = document.getElementById('docAgentEndpointInput').value.trim();
+      if (val) {
+        localStorage.setItem('aegis_doc_endpoint', val);
+        alert('Doc Agent endpoint saved: ' + val);
+      }
     });
   }
 

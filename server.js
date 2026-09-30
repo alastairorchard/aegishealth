@@ -215,8 +215,11 @@ ${message}`;
     try {
       docReply = await queryOpenClawDocAgent(prompt);
     } catch (e) {
-      console.warn('Doc agent CLI fallback to clinical synthesis:', e.message);
-      docReply = `[Doc Agent Synthesis]\n\nBased on your clinical record (ApoB: ${biomarkers.find(b => b.biomarker_code === 'APOB')?.value || '54'} mg/dL, Testo: ${biomarkers.find(b => b.biomarker_code === 'TESTO_TOTAL')?.value || '695'} ng/dL, Macular thickness: 268/272 µm):\n\nYour metabolic, vascular, and autonomic markers indicate optimal longevity zone alignment. Please let me know what specific telemetry or lab questions you'd like to explore.`;
+      console.error('[Doc Agent Error]', e);
+      return res.status(500).json({
+        status: 'error',
+        message: 'OpenClaw Doc Agent execution failed: ' + e.message
+      });
     }
 
     const docMsgObj = {
