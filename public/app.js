@@ -1928,40 +1928,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Condition Chat Form Handler
   const condDocChatForm = document.getElementById('condDocChatForm');
-  if (condDocChatForm) {
-    condDocChatForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const input = document.getElementById('condDocInput');
-      const val = (input?.value || '').trim();
-      if (!val || !state.selectedCondition) return;
+  const condDocInput = document.getElementById('condDocInput');
+  const btnSubmitCondChat = document.getElementById('btnSubmitCondChat');
 
-      const chatBox = document.getElementById('condDocChatBox');
+  async function handleConditionChatSubmit() {
+    if (!condDocInput) return;
+    const val = (condDocInput.value || '').trim();
+    if (!val || !state.selectedCondition) return;
+
+    const chatBox = document.getElementById('condDocChatBox');
+    if (!chatBox) return;
+
+    chatBox.innerHTML += `
+      <div class="flex items-start justify-end gap-2.5">
+        <div class="bg-brand-500/20 border border-brand-500/40 p-3 rounded-xl text-white text-xs leading-relaxed max-w-xl">
+          ${val}
+        </div>
+      </div>
+    `;
+    condDocInput.value = '';
+    chatBox.scrollTop = chatBox.scrollHeight;
+
+    const condTitle = state.selectedCondition.title || 'Condition';
+    const condSummary = state.selectedCondition.clinical_summary || '';
+    const conditionReply = generateDocClinicalConsultation(`${condTitle} ${condSummary} ${val}`);
+
+    setTimeout(() => {
       chatBox.innerHTML += `
-        <div class="flex items-start justify-end gap-2.5">
-          <div class="bg-brand-500/20 border border-brand-500/40 p-3 rounded-xl text-white text-xs leading-relaxed max-w-xl">
-            ${val}
+        <div class="flex items-start gap-2.5">
+          <div class="w-6 h-6 rounded-lg bg-accent-cyan/20 text-accent-cyan flex items-center justify-center font-bold text-[10px]">Doc</div>
+          <div class="bg-surface-card p-3 rounded-xl border border-surface-border text-slate-200 text-xs leading-relaxed max-w-xl">
+            <div class="whitespace-pre-line">${conditionReply}</div>
           </div>
         </div>
       `;
-      input.value = '';
       chatBox.scrollTop = chatBox.scrollHeight;
+    }, 200);
+  }
 
-      // Generate condition-specific analysis
-      const condTitle = state.selectedCondition.title;
-      const condSummary = state.selectedCondition.clinical_summary;
-      const conditionReply = generateDocClinicalConsultation(`${condTitle} ${condSummary} ${val}`);
+  if (condDocChatForm) {
+    condDocChatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleConditionChatSubmit();
+    });
+  }
 
-      setTimeout(() => {
-        chatBox.innerHTML += `
-          <div class="flex items-start gap-2.5">
-            <div class="w-6 h-6 rounded-lg bg-accent-cyan/20 text-accent-cyan flex items-center justify-center font-bold text-[10px]">Doc</div>
-            <div class="bg-surface-card p-3 rounded-xl border border-surface-border text-slate-200 text-xs leading-relaxed max-w-xl">
-              <div class="whitespace-pre-line">${conditionReply}</div>
-            </div>
-          </div>
-        `;
-        chatBox.scrollTop = chatBox.scrollHeight;
-      }, 300);
+  if (btnSubmitCondChat) {
+    btnSubmitCondChat.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleConditionChatSubmit();
+    });
+  }
+
+  if (condDocInput) {
+    condDocInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleConditionChatSubmit();
+      }
     });
   }
 

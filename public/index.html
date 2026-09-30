@@ -554,9 +554,9 @@
                 <!-- Condition-specific Doc chat bubbles -->
               </div>
 
-              <form id="condDocChatForm" class="flex gap-2 pt-2 border-t border-surface-border">
+              <form id="condDocChatForm" onsubmit="return false;" class="flex gap-2 pt-2 border-t border-surface-border">
                 <input type="text" id="condDocInput" placeholder="Ask Doc about this condition, interventions, or data tags..." class="flex-1 bg-surface-card border border-surface-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-brand-400">
-                <button type="submit" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer">
+                <button type="submit" id="btnSubmitCondChat" class="px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-xl text-xs font-semibold flex items-center gap-1 cursor-pointer">
                   <i data-lucide="send" class="w-3.5 h-3.5"></i> Send
                 </button>
               </form>
