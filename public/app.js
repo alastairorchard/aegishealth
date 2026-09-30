@@ -1950,6 +1950,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Manual on-demand cloud sync button
+  const btnManualCloudSync = document.getElementById('btnManualCloudSync');
+  if (btnManualCloudSync) {
+    btnManualCloudSync.addEventListener('click', async () => {
+      btnManualCloudSync.classList.add('animate-spin');
+      await loadUserData();
+      renderAll();
+      setTimeout(() => btnManualCloudSync.classList.remove('animate-spin'), 600);
+      alert('Health vault synced with Supabase cloud database!');
+    });
+  }
+
   // Clear all data
   const btnClearData = document.getElementById('btnClearData');
   if (btnClearData) {

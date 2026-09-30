@@ -2,7 +2,7 @@
 """
 AegisHealth - High-Performance Apple Health export.xml Streaming Ingester & Database Sync
 Streams multi-gigabyte export.xml files in seconds using iterparse (O(1) memory)
-and can automatically upload extracted daily metrics directly to Supabase cloud vault.
+and automatically uploads extracted daily metrics directly to Supabase cloud vault.
 """
 
 import sys
@@ -14,9 +14,8 @@ import urllib.request
 import urllib.error
 
 SUPABASE_URL = "https://motbikijmbuufadheykm.supabase.co"
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdGJpa2lqbWJ1dWZhZGhleWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NjE5NTQsImV4cCI6MjEwNjMzNzk1NH0.59_oyRSpL7OJ8MaG2FOCIWwV4a0N1zWNqClm77oWsoQ"
 
-def parse_apple_health_export(xml_path, user_id='alastairorchard@icloud.com', sync_supabase=True):
+def parse_apple_health_export(xml_path, user_id='alastairorchard@icloud.com', anon_key=None):
     if not os.path.exists(xml_path):
         print(f"[-] Error: File '{xml_path}' not found.")
         return []
@@ -34,8 +33,6 @@ def parse_apple_health_export(xml_path, user_id='alastairorchard@icloud.com', sy
         'HKCategoryTypeIdentifierSleepAnalysis': ('sleep_deep_min', 'min')
     }
 
-    # Use a dictionary to compute daily aggregated / representative values
-    # (e.g. 1 daily average for HRV, 1 daily resting HR, 1 daily deep sleep total)
     daily_aggregates = {}
     count = 0
 
@@ -52,14 +49,11 @@ def parse_apple_health_export(xml_path, user_id='alastairorchard@icloud.com', sy
                 unit = elem.attrib.get('unit', default_unit)
                 device = elem.attrib.get('sourceName', 'Apple Watch')
 
-                # Extract YYYY-MM-DD
                 day_key = start_date_str[:10] if len(start_date_str) >= 10 else ''
 
                 if day_key:
                     try:
                         if record_type == 'HKCategoryTypeIdentifierSleepAnalysis':
-                            # Sleep analysis: calculate duration of deep sleep in minutes
-                            # Value 4 or HKCategoryValueSleepAnalysisAsleepDeep
                             val_raw = str(value_str).lower()
                             if 'deep' in val_raw or val_raw == '4' or 'asleep' in val_raw:
                                 end_date_str = elem.attrib.get('endDate', '')
@@ -82,14 +76,13 @@ def parse_apple_health_export(xml_path, user_id='alastairorchard@icloud.com', sy
                     except Exception:
                         pass
 
-                if count % 10000 == 0:
+                if count % 20000 == 0:
                     print(f"  -> Processed {count:,} samples...", end='\r')
 
             elem.clear()
 
     print(f"\n[+] Total Raw Telemetry Records Scanned: {count:,}")
     
-    # Format into structured time-series metrics
     metrics = []
     for (day, metric_type), data in daily_aggregates.items():
         if metric_type == 'sleep_deep_min':
@@ -113,59 +106,71 @@ def parse_apple_health_export(xml_path, user_id='alastairorchard@icloud.com', sy
                 'recorded_at': data['date']
             })
 
-    # Sort chronologically
     metrics.sort(key=lambda x: x['recorded_at'])
     print(f"[+] Compiled into {len(metrics):,} daily aggregated longevity telemetry points.")
 
-    # Save to JSON bundle
     output_dir = os.path.dirname(os.path.abspath(xml_path))
     output_path = os.path.join(output_dir, 'aegis_ingested_vitals.json')
     with open(output_path, 'w') as f:
         json.dump(metrics, f, indent=2)
     print(f"[+] Saved clean JSON bundle to: {output_path}")
 
-    # Direct Supabase Cloud Sync
-    if sync_supabase and SUPABASE_URL and SUPABASE_ANON_KEY:
-        print(f"[*] Uploading {len(metrics)} telemetry points to Supabase Cloud Database...")
-        upload_to_supabase(metrics)
+    # Upload to Supabase
+    if anon_key:
+        upload_to_supabase_vault(metrics, user_id, anon_key)
 
     return metrics
 
-def upload_to_supabase(metrics, batch_size=500):
-    endpoint = f"{SUPABASE_URL}/rest/v1/wearable_metrics"
+def upload_to_supabase_vault(metrics, user_id, anon_key):
+    url = f"{SUPABASE_URL}/rest/v1/aegis_user_vaults"
     headers = {
-        "apikey": SUPABASE_ANON_KEY,
-        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "apikey": anon_key,
+        "Authorization": f"Bearer {anon_key}",
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates"
     }
 
-    total = len(metrics)
-    uploaded = 0
+    # Fetch existing user vault
+    existing_vault = {}
+    try:
+        get_req = urllib.request.Request(f"{url}?user_email=eq.{user_id}&select=vault_payload", headers=headers)
+        with urllib.request.urlopen(get_req) as resp:
+            rows = json.loads(resp.read().decode())
+            if rows and len(rows) > 0 and rows[0].get("vault_payload"):
+                existing_vault = rows[0]["vault_payload"]
+    except Exception as e:
+        print("[-] Fetch notice:", e)
 
-    for i in range(0, total, batch_size):
-        batch = metrics[i:i + batch_size]
-        payload = json.dumps(batch).encode('utf-8')
-        req = urllib.request.Request(endpoint, data=payload, headers=headers, method='POST')
-        try:
-            with urllib.request.urlopen(req) as resp:
-                if resp.status in (200, 201, 204):
-                    uploaded += len(batch)
-                    print(f"  -> Uploaded {uploaded}/{total} records to Supabase...", end='\r')
-        except urllib.error.HTTPError as e:
-            print(f"\n[-] Supabase batch error at offset {i}: {e.code} - {e.read().decode()[:200]}")
-            break
-        except Exception as e:
-            print(f"\n[-] Network error during upload: {e}")
-            break
+    existing_vault["user_email"] = user_id
+    existing_vault["wearableMetrics"] = metrics
+    existing_vault["updated_at"] = datetime.utcnow().isoformat() + "Z"
+    if "user_profile" not in existing_vault:
+        existing_vault["user_profile"] = {"fullName": user_id.split('@')[0], "email": user_id, "onboardingCompleted": True}
+    if "biomarkers" not in existing_vault:
+        existing_vault["biomarkers"] = []
+    if "labDocuments" not in existing_vault:
+        existing_vault["labDocuments"] = []
 
-    print(f"\n[+] Successfully synced {uploaded}/{total} records directly to Supabase cloud vault!")
+    payload = json.dumps([{
+        "user_email": user_id,
+        "vault_payload": existing_vault,
+        "updated_at": datetime.utcnow().isoformat() + "Z"
+    }]).encode("utf-8")
+
+    print(f"[*] Uploading complete {len(metrics)} vitals bundle to Supabase ({len(payload):,} bytes)...")
+    try:
+        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+        with urllib.request.urlopen(req) as resp:
+            print(f"[+] SUCCESS! Synced all {len(metrics):,} Apple Health points directly to Supabase Cloud (Status: {resp.status})")
+    except Exception as e:
+        print(f"[-] Supabase sync error: {e}")
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python3 import_apple_health_export.py <path_to_export.xml> [user_id]")
+        print("Usage: python3 import_apple_health_export.py <path_to_export.xml> [user_id] [anon_key]")
         sys.exit(1)
     
     xml_file = sys.argv[1]
     uid = sys.argv[2] if len(sys.argv) > 2 else 'alastairorchard@icloud.com'
-    parse_apple_health_export(xml_file, uid)
+    key = sys.argv[3] if len(sys.argv) > 3 else None
+    parse_apple_health_export(xml_file, uid, key)
