@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Supabase Cloud Configuration (Dedicated AegisHealth Project)
   const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://motbikijmbuufadheykm.supabase.co';
-  const SUPABASE_ANON_KEY = localStorage.getItem('aegis_sb_key') || '';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdGJpa2lqbWJ1dWZhZGhleWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NjE5NTQsImV4cCI6MjEwNjMzNzk1NH0.59_oyRSpL7OJ8MaG2FOCIWwV4a0N1zWNqClm77oWsoQ';
 
   // Application State
   const state = {
@@ -35,8 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Initialize Supabase Client
   function initSupabaseClient() {
-    const url = localStorage.getItem('aegis_sb_url') || SUPABASE_URL;
-    const key = localStorage.getItem('aegis_sb_key') || SUPABASE_ANON_KEY;
+    const url = SUPABASE_URL;
+    const key = SUPABASE_ANON_KEY;
     if (window.supabase && url && key) {
       try {
         state.supabase = window.supabase.createClient(url, key);
