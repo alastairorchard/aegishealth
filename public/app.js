@@ -7,9 +7,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.lucide.createIcons();
   }
 
-  // Supabase Cloud Configuration
-  const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://bfwlzobdpbuippfbbjud.supabase.co';
-  const SUPABASE_ANON_KEY = localStorage.getItem('aegis_sb_key') || 'sb_publishable_PcDpOFZptvEbE0wL8qDyLA_uqqkkf0A';
+  // Supabase Cloud Configuration (Dedicated AegisHealth Project)
+  const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://motbikijmbuufadheykm.supabase.co';
+  const SUPABASE_ANON_KEY = localStorage.getItem('aegis_sb_key') || '';
 
   // Application State
   const state = {
