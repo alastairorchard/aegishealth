@@ -738,7 +738,7 @@
                   <span class="text-[10px] text-slate-400" id="lastSyncTime">Just now</span>
                 </div>
                 <p class="text-slate-300 text-[11px] leading-relaxed">
-                  Your biomarkers, documents, conditions, and Apple Watch telemetry are unified across all machines. Any change on one machine updates all others.
+                  Your biomarkers, documents, conditions, and Apple Watch telemetry are unified in your dedicated Supabase database. Any change on one machine updates all others automatically.
                 </p>
                 <div class="flex flex-wrap gap-2 pt-1">
                   <button id="btnExportVaultBackup" class="flex-1 py-2 px-3 bg-surface-card hover:bg-surface-muted border border-surface-border text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
@@ -746,9 +746,6 @@
                   </button>
                   <button id="btnImportVaultBackup" class="flex-1 py-2 px-3 bg-surface-card hover:bg-surface-muted border border-surface-border text-slate-200 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
                     <i data-lucide="upload" class="w-3.5 h-3.5 text-accent-cyan"></i> Import Backup JSON
-                  </button>
-                  <button id="btnOpenCloudConfig" class="py-2 px-3 bg-surface-card hover:bg-surface-muted border border-surface-border text-slate-300 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
-                    <i data-lucide="settings" class="w-3.5 h-3.5 text-amber-400"></i> Supabase Setup
                   </button>
                   <input type="file" id="backupFileInput" class="hidden" accept=".json">
                 </div>
@@ -819,59 +816,6 @@
     <footer class="mt-auto border-t border-surface-border bg-surface-dark/80 py-4 px-6 text-center text-xs text-slate-500">
       <p>AegisHealth Longevity Platform • Cross-Device Cloud Sync & Doc Medical AI</p>
     </footer>
-  </div>
-
-  <!-- ============================================================================== -->
-  <!-- SUPABASE CLOUD SETUP MODAL                                                     -->
-  <!-- ============================================================================== -->
-  <div id="cloudConfigModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md hidden p-4">
-    <div class="bg-surface-card border border-surface-border rounded-3xl w-full max-w-lg p-6 sm:p-8 shadow-2xl relative">
-      <div class="flex items-center justify-between pb-4 border-b border-surface-border mb-4">
-        <div class="flex items-center gap-2.5">
-          <div class="p-2 bg-brand-500/10 rounded-xl text-brand-400">
-            <i data-lucide="cloud-cog" class="w-5 h-5"></i>
-          </div>
-          <div>
-            <h3 class="text-base font-bold text-white">Supabase Cloud Database Settings</h3>
-            <p class="text-xs text-slate-400">Configure your cloud PostgreSQL credentials for automatic multi-device sync</p>
-          </div>
-        </div>
-        <button id="btnCloseCloudConfig" class="text-slate-400 hover:text-white p-1 cursor-pointer">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <form id="cloudConfigForm" class="space-y-4 text-xs">
-        <div>
-          <label class="block font-semibold text-slate-300 mb-1">Supabase Project URL</label>
-          <input type="url" id="cfgSupabaseUrl" required class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-brand-400" placeholder="https://xyzcompany.supabase.co">
-        </div>
-
-        <div>
-          <label class="block font-semibold text-slate-300 mb-1">Supabase Anon Public Key</label>
-          <input type="text" id="cfgSupabaseKey" required class="w-full bg-surface-dark border border-surface-border rounded-xl px-3 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-brand-400" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...">
-        </div>
-
-        <div class="bg-surface-dark/60 p-3 rounded-xl border border-surface-border space-y-1.5 text-[11px] text-slate-400">
-          <div class="font-semibold text-slate-300 flex items-center gap-1">
-            <i data-lucide="info" class="w-3.5 h-3.5 text-brand-400"></i> Automatic Table Creation:
-          </div>
-          <p>If you have not run the schema yet, execute this 1-line table in your Supabase SQL Editor:</p>
-          <pre class="bg-surface-dark p-2 rounded text-[10px] text-brand-300 font-mono select-all overflow-x-auto">CREATE TABLE IF NOT EXISTS public.aegis_user_vaults (user_email TEXT PRIMARY KEY, vault_payload JSONB, updated_at TIMESTAMPTZ DEFAULT NOW());
-ALTER TABLE public.aegis_user_vaults ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Public Access" ON public.aegis_user_vaults FOR ALL USING (true) WITH CHECK (true);</pre>
-        </div>
-
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <button type="button" id="btnTestCloudConnection" class="py-2.5 px-4 bg-surface-dark hover:bg-surface-muted border border-surface-border text-slate-200 font-semibold rounded-xl text-xs cursor-pointer">
-            Test Connection
-          </button>
-          <button type="submit" class="py-2.5 px-5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl text-xs shadow-md cursor-pointer">
-            Save & Connect
-          </button>
-        </div>
-      </form>
-    </div>
   </div>
 
   <!-- ============================================================================== -->
