@@ -2721,113 +2721,57 @@ Please consider ordering the following targeted follow-up panel on the patient's
   // VAULT BACKUP EXPORT & IMPORT (MULTI-DEVICE RESTORE)
   // ----------------------------------------------------------------------------
   
+  
+  // Complete Clinical Reset & Restore Handlers
+  async function performFullBaselineRestore() {
+    const userKey = state.currentUser ? btoa(state.currentUser.email) : '';
+    if (userKey) localStorage.removeItem(`aegis_data_${userKey}`);
+    localStorage.removeItem('aegis_data_global_vault');
+
+    state.biomarkers = JSON.parse(JSON.stringify(DEFAULT_CLINICAL_BIOMARKERS));
+    state.labDocuments = JSON.parse(JSON.stringify(DEFAULT_MULTIMODAL_DOCUMENTS));
+    state.conditions = JSON.parse(JSON.stringify(DEFAULT_CONDITIONS));
+    state.messages = [];
+    state.reports = [];
+
+    // Load pre-ingested Apple Watch vitals
+    try {
+      const res = await fetch('./aegis_daily_vitals.json');
+      if (res.ok) {
+        const vitals = await res.json();
+        if (Array.isArray(vitals)) {
+          state.wearableMetrics = vitals.slice(-400);
+        }
+      }
+    } catch (e) {
+      console.warn('Vitals fetch notice:', e);
+    }
+
+    initDocGreeting();
+    await saveUserData();
+    renderAll();
+    alert('✅ Success! Your complete clinical dataset (All 21 biomarkers, 5 multi-modal diagnostic documents, 4 tracked conditions, and Apple Watch vitals) has been loaded into your vault!');
+  }
+
   // 1-Click Complete Clinical Dataset Restoration
   const btnRestoreFullBaseline = document.getElementById('btnRestoreFullBaseline');
   if (btnRestoreFullBaseline) {
-    btnRestoreFullBaseline.addEventListener('click', async () => {
-      state.biomarkers = [...DEFAULT_CLINICAL_BIOMARKERS];
-      state.labDocuments = [...DEFAULT_MULTIMODAL_DOCUMENTS];
-      state.conditions = [...DEFAULT_CONDITIONS];
-      
-      // Load recent Apple Watch vitals if available
-      try {
-        const res = await fetch('./aegis_daily_vitals.json');
-        if (res.ok) {
-          const vitals = await res.json();
-          if (Array.isArray(vitals)) {
-            state.wearableMetrics = vitals.slice(-400);
-          }
-        }
-      } catch (e) {}
-
-      initDocGreeting();
-      await saveUserData();
-      renderAll();
-      alert('Success! Your complete clinical dataset (All 21 biomarkers, 5 multi-modal diagnostic documents, 4 tracked conditions, and Apple Watch telemetry) has been loaded into your vault!');
-    });
+    btnRestoreFullBaseline.addEventListener('click', performFullBaselineRestore);
   }
 
-  const btnExportVaultBackup = document.getElementById('btnExportVaultBackup');
-  const btnImportVaultBackup = document.getElementById('btnImportVaultBackup');
-  const backupFileInput = document.getElementById('backupFileInput');
-
-  if (btnExportVaultBackup) {
-    btnExportVaultBackup.addEventListener('click', () => {
-      const bundle = {
-        app: 'AegisHealth',
-        version: '1.0.0',
-        exported_at: new Date().toISOString(),
-        user_email: state.currentUser.email,
-        user_profile: state.currentUser,
-        biomarkers: state.biomarkers,
-        wearableMetrics: state.wearableMetrics,
-        labDocuments: state.labDocuments,
-        conditions: state.conditions,
-        conditionTags: state.conditionTags,
-        insights: state.insights,
-        messages: state.messages,
-        reports: state.reports
-      };
-
-      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `aegis_health_vault_backup_${state.currentUser.email.split('@')[0]}_${new Date().toISOString().split('T')[0]}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-  }
-
-  if (btnImportVaultBackup && backupFileInput) {
-    btnImportVaultBackup.addEventListener('click', () => backupFileInput.click());
-    backupFileInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      try {
-        const text = await file.text();
-        const data = JSON.parse(text);
-        if (data && (data.biomarkers || data.wearableMetrics)) {
-          state.biomarkers = data.biomarkers || state.biomarkers;
-          state.wearableMetrics = data.wearableMetrics || state.wearableMetrics;
-          state.labDocuments = data.labDocuments || state.labDocuments;
-          state.conditions = data.conditions || state.conditions;
-          state.conditionTags = data.conditionTags || state.conditionTags;
-          state.insights = data.insights || state.insights;
-          state.messages = data.messages || state.messages;
-          state.reports = data.reports || state.reports;
-
-          await saveUserData();
-          renderAll();
-          alert('Health vault backup successfully restored and synced to cloud!');
-        } else {
-          alert('Invalid backup file format.');
-        }
-      } catch (err) {
-        alert('Error reading backup file: ' + err.message);
-      }
-      backupFileInput.value = '';
-    });
-  }
-
-  // Manual on-demand cloud sync button
-  const btnManualCloudSync = document.getElementById('btnManualCloudSync');
-  if (btnManualCloudSync) {
-    btnManualCloudSync.addEventListener('click', async () => {
-      btnManualCloudSync.classList.add('animate-spin');
-      await loadUserData();
-      renderAll();
-      setTimeout(() => btnManualCloudSync.classList.remove('animate-spin'), 600);
-      alert('Health vault synced with Supabase cloud database!');
-    });
-  }
-
-  // Clear all data
+  // Clear data / Reset Handler
   const btnClearData = document.getElementById('btnClearData');
   if (btnClearData) {
     btnClearData.addEventListener('click', async () => {
-      if (confirm('Clear all stored biomarkers and reset your health vault to a clean zero state?')) {
+      const confirmReset = confirm('Choose reset option:\n\n• Click "OK" to reload the Complete Verified Clinical Baseline (All labs, documents, conditions & vitals).\n• Click "Cancel" to clear everything to an empty zero-state.');
+      
+      const userKey = state.currentUser ? btoa(state.currentUser.email) : '';
+      if (userKey) localStorage.removeItem(`aegis_data_${userKey}`);
+      localStorage.removeItem('aegis_data_global_vault');
+
+      if (confirmReset) {
+        await performFullBaselineRestore();
+      } else {
         state.biomarkers = [];
         state.wearableMetrics = [];
         state.labDocuments = [];
@@ -2839,10 +2783,11 @@ Please consider ordering the following targeted follow-up panel on the patient's
         initDocGreeting();
         await saveUserData();
         renderAll();
-        alert('Vault cleared! You now have a clean zero-state dashboard.');
+        alert('Vault reset to an empty zero-state.');
       }
     });
   }
+
 
   // Copy Webhook / Token Helpers
   const btnCopyWebhook = document.getElementById('btnCopyWebhook');
