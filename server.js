@@ -162,6 +162,63 @@ app.post('/api/labs/upload', upload.single('document'), async (req, res) => {
     const file = req.file;
     if (!file) {
       return res.status(400).json({ status: 'error', message: 'No document uploaded.' });
+
+// 2b. Vision OCR & Multi-Page Document Parser
+app.post('/api/labs/ocr-vision', async (req, res) => {
+  try {
+    const { images, fileName } = req.body;
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      return res.status(400).json({ status: 'error', message: 'No images provided.' });
+    }
+
+    console.log(`[Vision OCR] Processing ${images.length} scanned page(s) for ${fileName || 'Document'}...`);
+
+    const prompt = `Analyze these photographed paper clinical laboratory documents (${images.length} page(s)).
+Extract all verified laboratory biomarker results, reference intervals, units, test dates, and clinical provider.
+Format output strictly as a JSON object with:
+{
+  "lab_provider": "Name of clinical laboratory / hospital",
+  "test_date": "YYYY-MM-DD",
+  "extracted_items": [
+    {
+      "code": "STANDARD_CODE",
+      "name": "Biomarker Name",
+      "value": 12.34,
+      "unit": "mg/dL",
+      "category": "lipids_cardio | hormones | endocrine | metabolic | general",
+      "reference_range": "Normal range string"
+    }
+  ]
+}`;
+
+    const reply = await queryOpenClawDocAgent(prompt);
+    
+    // Parse JSON from agent reply
+    let parsedData = null;
+    try {
+      const jsonMatch = reply.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedData = JSON.parse(jsonMatch[0]);
+      }
+    } catch (e) {
+      console.warn('Could not parse JSON from vision reply:', e);
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      data: parsedData || {
+        lab_provider: 'Clinical Laboratory',
+        test_date: new Date().toISOString().slice(0, 10),
+        extracted_items: []
+      },
+      raw_text: reply
+    });
+  } catch (err) {
+    console.error('Vision OCR error:', err);
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+});
+
     }
 
     const { labProvider, testDate, documentType, userId } = req.body;

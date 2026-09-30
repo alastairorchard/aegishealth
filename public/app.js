@@ -1198,42 +1198,66 @@ document.addEventListener('DOMContentLoaded', () => {
     renderScannedThumbnails();
   };
 
-  if (btnProcessBatchPages) {
+    if (btnProcessBatchPages) {
     btnProcessBatchPages.addEventListener('click', async () => {
       if (state.scannedPages.length === 0) {
         alert('Please photograph or upload at least 1 page first.');
         return;
       }
 
-      btnProcessBatchPages.textContent = 'Processing OCR...';
+      btnProcessBatchPages.innerHTML = '<span>⏳</span> Extracting Text via OCR...';
+      const pagesCount = state.scannedPages.length;
+      let combinedLines = [];
+      let detectedDate = new Date().toISOString().split('T')[0];
 
-      const detectedDate = new Date().toISOString().split('T')[0];
-      const allExtracted = [];
+      // 1. Run Client-Side OCR with Tesseract.js if available
+      if (window.Tesseract) {
+        try {
+          for (let i = 0; i < state.scannedPages.length; i++) {
+            const page = state.scannedPages[i];
+            btnProcessBatchPages.innerHTML = `<span>⏳</span> OCR Page ${i + 1}/${pagesCount}...`;
+            const result = await window.Tesseract.recognize(page.base64, 'ita+eng');
+            const pageText = result?.data?.text || '';
+            combinedLines = combinedLines.concat(pageText.split(/[\r\n]+/));
+          }
+        } catch (ocrErr) {
+          console.warn('Tesseract client OCR notice:', ocrErr);
+        }
+      }
 
-      // Parse and extract biomarkers from clinical dictionary
-      CLINICAL_DICTIONARY.forEach((dict) => {
-        // Sample baseline extraction for user review
-      });
+      // Detect Test Date from OCR lines
+      for (const l of combinedLines) {
+        const dateMatch = l.match(/(?:data\s*referto|data\s*esame|date|prelievo|del)[:\s]*([0-3]?[0-9][/-][0-1]?[0-9][/-][1-2][0-9]{3})/i);
+        if (dateMatch && dateMatch[1]) {
+          const parts = dateMatch[1].split(/[/-]/);
+          if (parts.length === 3) {
+            detectedDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+            break;
+          }
+        }
+      }
 
-      // Default review form pre-populated for the scanned pages
+      // Parse tabular clinical lines from OCR text
+      let extractedItems = parseTabularClinicalLines(combinedLines);
+
+      // If OCR yielded few rows, provide standard review rows ready for quick verification
+      if (extractedItems.length === 0) {
+        extractedItems = [
+          { code: 'TOTAL_CHOLESTEROL', name: 'Total Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
+          { code: 'HDL_CHOLESTEROL', name: 'HDL Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
+          { code: 'LDL_CHOLESTEROL', name: 'LDL Cholesterol', value: '', unit: 'mg/dL', category: 'lipids_cardio' },
+          { code: 'TRIGLYCERIDES', name: 'Triglycerides', value: '', unit: 'mg/dL', category: 'lipids_cardio' }
+        ];
+      }
+
       openLabReviewModal({
-        documentTitle: `Photographed Clinical Record (${state.scannedPages.length} pages)`,
-        fileName: `Paper_Scan_${detectedDate.replace(/-/g, '')}_${state.scannedPages.length}p.jpg`,
-        fileSizeBytes: state.scannedPages.length * 450000,
+        documentTitle: `Photographed Clinical Record (${pagesCount} pages)`,
+        fileName: `Paper_Scan_${detectedDate.replace(/-/g, '')}_${pagesCount}p.jpg`,
+        fileSizeBytes: pagesCount * 450000,
         mimeType: 'image/jpeg',
-        rawText: `Multi-page camera capture: ${state.scannedPages.length} page(s) scanned via phone camera.`,
+        rawText: combinedLines.join('\n') || `Multi-page camera capture (${pagesCount} pages).`,
         extractedDate: detectedDate,
-        extractedItems: [
-          { code: 'TOTAL_CHOLESTEROL', name: 'Total Cholesterol', value: 211, unit: 'mg/dL', category: 'lipids_cardio' },
-          { code: 'HDL_CHOLESTEROL', name: 'HDL Cholesterol', value: 69, unit: 'mg/dL', category: 'lipids_cardio' },
-          { code: 'LDL_CHOLESTEROL', name: 'LDL Cholesterol', value: 127, unit: 'mg/dL', category: 'lipids_cardio' },
-          { code: 'TRIGLYCERIDES', name: 'Triglycerides', value: 77, unit: 'mg/dL', category: 'lipids_cardio' },
-          { code: 'TSH', name: 'TSH (Thyroid Stimulating Hormone)', value: 3.96, unit: 'µIU/mL', category: 'endocrine' },
-          { code: 'TOTAL_TESTOSTERONE', name: 'Total Testosterone', value: 6.6, unit: 'ng/mL', category: 'hormones' },
-          { code: 'TOTAL_PSA', name: 'Total PSA', value: 1.38, unit: 'ng/mL', category: 'hormones' },
-          { code: 'FREE_PSA', name: 'Free PSA', value: 0.52, unit: 'ng/mL', category: 'hormones' },
-          { code: 'PSA_RATIO', name: 'Free / Total PSA Ratio', value: 38, unit: '%', category: 'hormones' }
-        ]
+        extractedItems: extractedItems
       });
 
       btnProcessBatchPages.innerHTML = '<span>⚡</span> Process & Extract Data';
