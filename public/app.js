@@ -13,9 +13,9 @@ document.addEventListener('DOMContentLoaded', () => {
     localStorage.removeItem('aegis_sb_url');
   } catch(e) {}
 
-    // Supabase Cloud Configuration (Dedicated AegisHealth Project)
-  const SUPABASE_URL = localStorage.getItem('aegis_sb_url') || 'https://motbikijmbuufadheykm.supabase.co';
-  const SUPABASE_ANON_KEY = localStorage.getItem('aegis_sb_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdGJpa2lqbWJ1dWZhZGhleWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1MDU4NDksImV4cCI6MjA1OTA4MTg0OX0.5E3jG46V6h51J7l1_q4_u8G-mDclm77oWsoQ';
+      // Supabase Cloud Configuration (Dedicated AegisHealth Project)
+  const SUPABASE_URL = 'https://motbikijmbuufadheykm.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1vdGJpa2lqbWJ1dWZhZGhleWttIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3NjE5NTQsImV4cCI6MjEwNjMzNzk1NH0.59_oyRSpL7OJ8MaG2FOCIWwV4a0N1zWNqClm77oWsoQ';
 
   // Application State
   const state = {
@@ -227,35 +227,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  function showAuthError(msg) {
+    function showAuthError(msg) {
+    authErrorMsg.textContent = msg || 'Authentication error. Please check your credentials.';
     authErrorMsg.classList.remove('hidden');
-    if (msg && msg.toLowerCase().includes('invalid api key')) {
-      authErrorMsg.innerHTML = `
-        <div class="space-y-2">
-          <p class="font-bold text-rose-300">⚠️ Invalid Supabase API Key for project <code>motbikijmbuufadheykm</code>.</p>
-          <p class="text-[11px] text-slate-300">Paste your project's current <strong>Anon / Publishable Key</strong> from your Supabase Dashboard:</p>
-          <div class="flex gap-1.5 pt-1">
-            <input type="***" id="inlineSbKeyInput" placeholder="eyJhbG... or sb_publishable_..." class="flex-1 bg-[#0c1429] border border-rose-500/50 rounded-lg px-2.5 py-1 text-white text-xs font-mono">
-            <button type="button" onclick="saveInlineSbKey()" class="px-3 py-1 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-lg text-xs cursor-pointer">
-              Save & Retry
-            </button>
-          </div>
-        </div>
-      `;
-    } else {
-      authErrorMsg.textContent = msg;
-    }
   }
-
-  window.saveInlineSbKey = async function() {
-    const k = (document.getElementById('inlineSbKeyInput')?.value || '').trim();
-    if (!k) return;
-    localStorage.setItem('aegis_sb_key', k);
-    initSupabaseClient();
-    authErrorMsg.classList.add('hidden');
-    // Trigger submit
-    authForm.dispatchEvent(new Event('submit'));
-  };
 
   function unlockApp() {
     authGateModal.classList.add('hidden');
