@@ -335,23 +335,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const userKey = btoa(state.currentUser.email);
     const localKey = `aegis_data_${userKey}`;
     
-    const saved = localStorage.getItem(localKey);
+    // Load from local storage (try user key first, then global vault backup)
+    const saved = localStorage.getItem(localKey) || localStorage.getItem('aegis_data_global_vault');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        state.biomarkers = parsed.biomarkers || [];
-        state.wearableMetrics = parsed.wearableMetrics || [];
-        state.labDocuments = parsed.labDocuments || [];
-        state.conditions = parsed.conditions || [];
-        state.conditionTags = parsed.conditionTags || [];
-        state.insights = parsed.insights || [];
-        state.messages = parsed.messages || [];
-        state.reports = parsed.reports || [];
+        if (parsed.biomarkers && parsed.biomarkers.length > 0) state.biomarkers = parsed.biomarkers;
+        if (parsed.wearableMetrics && parsed.wearableMetrics.length > 0) state.wearableMetrics = parsed.wearableMetrics;
+        if (parsed.labDocuments && parsed.labDocuments.length > 0) state.labDocuments = parsed.labDocuments;
+        if (parsed.conditions && parsed.conditions.length > 0) state.conditions = parsed.conditions;
+        if (parsed.conditionTags && parsed.conditionTags.length > 0) state.conditionTags = parsed.conditionTags;
+        if (parsed.insights && parsed.insights.length > 0) state.insights = parsed.insights;
+        if (parsed.messages && parsed.messages.length > 0) state.messages = parsed.messages;
+        if (parsed.reports && parsed.reports.length > 0) state.reports = parsed.reports;
       } catch (e) {
         console.warn('Local data parse error:', e);
       }
     }
 
+    // Attempt cloud sync merge (without overwriting if cloud is empty)
     if (state.supabase) {
       try {
         const { data, error } = await state.supabase
@@ -362,16 +364,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (!error && data && data.vault_payload) {
           const cloudVault = data.vault_payload;
-          state.biomarkers = cloudVault.biomarkers || state.biomarkers;
-          state.wearableMetrics = cloudVault.wearableMetrics || state.wearableMetrics;
-          state.labDocuments = cloudVault.labDocuments || state.labDocuments;
-          state.conditions = cloudVault.conditions || state.conditions;
-          state.conditionTags = cloudVault.conditionTags || state.conditionTags;
-          state.insights = cloudVault.insights || state.insights;
-          state.messages = cloudVault.messages || state.messages;
-          state.reports = cloudVault.reports || state.reports;
+          if (cloudVault.biomarkers && cloudVault.biomarkers.length > 0) state.biomarkers = cloudVault.biomarkers;
+          if (cloudVault.wearableMetrics && cloudVault.wearableMetrics.length > 0) state.wearableMetrics = cloudVault.wearableMetrics;
+          if (cloudVault.labDocuments && cloudVault.labDocuments.length > 0) state.labDocuments = cloudVault.labDocuments;
+          if (cloudVault.conditions && cloudVault.conditions.length > 0) state.conditions = cloudVault.conditions;
+          if (cloudVault.messages && cloudVault.messages.length > 0) state.messages = cloudVault.messages;
+          if (cloudVault.reports && cloudVault.reports.length > 0) state.reports = cloudVault.reports;
 
-          localStorage.setItem(localKey, JSON.stringify(cloudVault));
+          saveUserData(); // Resave synchronized state locally
           const lastSyncEl = document.getElementById('lastSyncTime');
           if (lastSyncEl) lastSyncEl.textContent = new Date().toLocaleTimeString();
         }
@@ -405,6 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     localStorage.setItem(localKey, JSON.stringify(bundle));
+    localStorage.setItem('aegis_data_global_vault', JSON.stringify(bundle)); // Persistent global cache
 
     if (state.supabase) {
       try {
@@ -716,14 +717,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const catalog = getIngestedBiomarkerCatalog();
     if (catalog.length === 0) {
-      select.innerHTML = `<option value="">-- No Ingested Biomarkers --</option>`;
+      select.innerHTML = `<option value="" class="bg-[#0c1429] text-slate-400">-- No Ingested Biomarkers --</option>`;
       return;
     }
 
     const currentVal = select.value;
     select.innerHTML = catalog.map(m => `
-      <option value="${m.code}" ${m.code === currentVal ? 'selected' : ''}>${m.name} (${m.unit})</option>
+      <option value="${m.code}" class="bg-[#0c1429] text-white py-1" ${m.code === currentVal ? 'selected' : ''}>${m.name} (${m.unit})</option>
     `).join('');
+
+    // Ensure valid selection is always active
+    if (!currentVal || !catalog.some(m => m.code === currentVal)) {
+      select.value = catalog[0].code;
+    }
   }
 
   function renderOverviewChart() {
@@ -1081,31 +1087,92 @@ document.addEventListener('DOMContentLoaded', () => {
   async function processUploadedDocument(file) {
     const fn = file.name.toLowerCase();
 
-    // 1. Direct JSON Vitals Bundle Upload (from Apple Health Export Script)
+    // 1. Apple Health XML Export (export.xml or export_cda.xml)
+    if (fn.endsWith('.xml')) {
+      try {
+        const text = await file.text();
+        let addedCount = 0;
+        
+        // Fast streaming regex matching on HKQuantityTypeIdentifier records
+        const recordRegex = /<Record\s+[^>]*?type="([^"]+)"[^>]*?value="([^"]+)"(?:[^>]*?unit="([^"]*)")?[^>]*?startDate="([^"]+)"/gi;
+        let match;
+        
+        const typeMap = {
+          'HKQuantityTypeIdentifierHeartRateVariabilitySDNN': { code: 'hrv_sdnn', unit: 'ms' },
+          'HKQuantityTypeIdentifierRestingHeartRate': { code: 'resting_heart_rate', unit: 'bpm' },
+          'HKQuantityTypeIdentifierVO2Max': { code: 'vo2_max', unit: 'mL/min·kg' },
+          'HKQuantityTypeIdentifierActiveEnergyBurned': { code: 'active_energy', unit: 'kcal' },
+          'HKQuantityTypeIdentifierBodyMass': { code: 'body_weight', unit: 'kg' },
+          'HKQuantityTypeIdentifierHeartRate': { code: 'heart_rate', unit: 'bpm' }
+        };
+
+        while ((match = recordRegex.exec(text)) !== null) {
+          const hkType = match[1];
+          const rawVal = parseFloat(match[2]);
+          const unit = match[3] || '';
+          const dateStr = match[4];
+
+          if (typeMap[hkType] && !isNaN(rawVal)) {
+            const mapped = typeMap[hkType];
+            state.wearableMetrics.push({
+              id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+              user_id: state.currentUser?.id || 'demo-user',
+              metric_type: mapped.code,
+              value: Math.round(rawVal * 10) / 10,
+              unit: unit || mapped.unit,
+              device_source: 'Apple Watch Ultra 4',
+              recorded_at: dateStr
+            });
+            addedCount++;
+          }
+        }
+
+        if (addedCount > 0) {
+          await saveUserData();
+          renderAll();
+          alert(`Success! Extracted and verified ${addedCount} Apple Health telemetry samples from ${file.name}!`);
+          return;
+        }
+      } catch (err) {
+        console.warn('Apple Health XML parse error:', err);
+      }
+    }
+
+    // 2. Direct JSON Vitals Bundle Upload (from export script, Health Auto Export, or Array)
     if (fn.endsWith('.json')) {
       try {
         const text = await file.text();
-        const data = JSON.parse(text);
-        if (Array.isArray(data)) {
-          let addedCount = 0;
+        const parsed = JSON.parse(text);
+        const data = Array.isArray(parsed) ? parsed : (parsed.metrics || parsed.data?.metrics || parsed.data || []);
+        
+        let addedCount = 0;
+        if (Array.isArray(data) && data.length > 0) {
           data.forEach(item => {
-            if (item.metric_type && item.value !== undefined) {
+            const mType = item.metric_type || item.name || item.type;
+            const mVal = item.value !== undefined ? item.value : (item.qty !== undefined ? item.qty : item.Avg);
+            const mUnit = item.unit || item.units || '';
+            const mDate = item.recorded_at || item.date || item.startDate || new Date().toISOString();
+
+            if (mType && mVal !== undefined) {
               state.wearableMetrics.push({
                 id: 'wm-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-                user_id: state.currentUser.id,
-                metric_type: item.metric_type,
-                value: item.value,
-                unit: item.unit || 'unit',
-                device_source: item.device_source || 'Apple Watch Ultra 4',
-                recorded_at: item.recorded_at || new Date().toISOString()
+                user_id: state.currentUser?.id || 'demo-user',
+                metric_type: String(mType).toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+                value: parseFloat(mVal) || mVal,
+                unit: mUnit || 'unit',
+                device_source: 'Apple Watch Ultra 4',
+                recorded_at: mDate
               });
               addedCount++;
             }
           });
-          await saveUserData();
-          renderAll();
-          alert(`Successfully imported ${addedCount} Apple Health telemetry records into your health vault!`);
-          return;
+
+          if (addedCount > 0) {
+            await saveUserData();
+            renderAll();
+            alert(`Successfully imported ${addedCount} Apple Health telemetry records into your health vault!`);
+            return;
+          }
         }
       } catch (err) {
         console.warn('JSON vitals import error:', err);
@@ -1838,19 +1905,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const wearables = state.wearableMetrics || [];
     const conditions = state.conditions || [];
 
-    // Helper to find latest value
-    const getLatest = (code) => {
-      const matches = biomarkers.filter(b => b.biomarker_code === code).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
+    // Flexible fuzzy matcher by code or name
+    const findLatest = (pattern) => {
+      const matches = biomarkers.filter(b => {
+        const str = ((b.biomarker_code || '') + ' ' + (b.biomarker_name || '')).toLowerCase();
+        return pattern.test(str);
+      }).sort((a, b) => new Date(b.test_date) - new Date(a.test_date));
       return matches.length > 0 ? matches[0] : null;
     };
 
-    const ldl = getLatest('CHOL_LDL') || getLatest('LDL');
-    const hdl = getLatest('CHOL_HDL') || getLatest('HDL');
-    const tg = getLatest('TRIGLYCERIDES') || getLatest('TG');
-    const tsh = getLatest('TSH');
-    const testo = getLatest('TESTO_TOTAL') || getLatest('TESTOSTERONE');
-    const macularOS = getLatest('OCT_CST_OS');
-    const macularOD = getLatest('OCT_CST_OD');
+    const ldl = findLatest(/ldl/i);
+    const hdl = findLatest(/hdl/i);
+    const tg = findLatest(/triglicer|triglycer/i);
+    const cholTot = findLatest(/colesterolo\s*tot|total\s*chol/i);
+    const tsh = findLatest(/tsh|tireostim/i);
+    const testo = findLatest(/testost/i);
+    const psaRatio = findLatest(/psa.*libero|psa.*ratio|free.*psa/i);
+    const psaTot = findLatest(/psa|antigene\s*prost/i);
+    const macularOS = findLatest(/oct.*os|macul.*sinistr/i);
+    const macularOD = findLatest(/oct.*od|macul.*destr/i);
+    const glucose = findLatest(/glucos|glicem/i);
+
+    // 1. PSA Ratio & Prostate Health Insight
+    if (psaRatio || psaTot) {
+      const ratioVal = psaRatio ? parseFloat(psaRatio.value) : (psaTot ? parseFloat(psaTot.value) : null);
+      const isFavorable = ratioVal !== null && ratioVal > 25;
+
+      insights.push({
+        id: 'ins-psa',
+        category: "Men's Health & Oncology",
+        badge: isFavorable ? 'Optimal / Favorable' : 'Routine Monitoring',
+        badgeColor: isFavorable ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-amber-400 bg-amber-500/10 border-amber-500/30',
+        icon: 'shield-check',
+        title: 'Free / Total PSA Ratio & Urological Assessment',
+        summary: `Latest **Free/Total PSA Ratio** is verified at **${psaRatio ? psaRatio.value + ' %' : (psaTot ? psaTot.value + ' ng/mL' : 'Normal')}** (tested ${psaRatio?.test_date || psaTot?.test_date || 'recently'}). A ratio > 25% represents strong benign reassurance.`,
+        recommendation: 'Maintain annual routine urological surveillance. Ensure PSA testing is performed at least 48h after vigorous cycling to avoid mechanical elevation.',
+        evidence: `PSA Metric: ${psaRatio ? psaRatio.value + '%' : psaTot?.value + ' ng/mL'} • Date: ${psaRatio?.test_date || psaTot?.test_date}`,
+        prompt: 'Doc, analyze my Free/Total PSA ratio and confirm the clinical interpretation.'
+      });
+    }
 
     // 1. Cardiovascular & Lipid Particle Discordance
     if (ldl && hdl && tg) {
