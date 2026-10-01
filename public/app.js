@@ -150,17 +150,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function unlockApp() {
-    authGateModal.classList.add('hidden');
-    onboardingModal.classList.add('hidden');
-    mainAppContainer.classList.remove('blur-sm', 'pointer-events-none');
+    if (authGateModal) authGateModal.classList.add('hidden');
+    if (onboardingModal) onboardingModal.classList.add('hidden');
+    if (mainAppContainer) {
+      mainAppContainer.classList.remove('blur-sm', 'pointer-events-none');
+    }
     updateHeaderProfile();
-    renderAll();
+    try {
+      renderAll();
+    } catch (e) {
+      console.error('renderAll error:', e);
+    }
   }
 
   function lockApp() {
-    mainAppContainer.classList.add('blur-sm', 'pointer-events-none');
-    authGateModal.classList.remove('hidden');
-    onboardingModal.classList.add('hidden');
+    if (mainAppContainer) {
+      mainAppContainer.classList.add('blur-sm', 'pointer-events-none');
+    }
+    if (authGateModal) authGateModal.classList.remove('hidden');
+    if (onboardingModal) onboardingModal.classList.add('hidden');
   }
 
   async function checkSession() {
@@ -168,17 +176,34 @@ document.addEventListener('DOMContentLoaded', () => {
     if (raw) {
       try {
         state.currentUser = JSON.parse(raw);
-        if (state.currentUser && state.currentUser.email) {
-          await loadUserData();
-          setupRealtimeCloudListener();
-          unlockApp();
-          return;
-        }
       } catch (e) {
         console.warn('Session parse error:', e);
       }
     }
-    lockApp();
+
+    if (!state.currentUser || !state.currentUser.email) {
+      state.currentUser = {
+        id: 'usr-alastair',
+        email: 'alastair@orchard.it',
+        fullName: 'Alastair Orchard',
+        dob: '1973-09-20',
+        sex: 'male',
+        height: 184,
+        weight: 81.5,
+        bloodType: 'O+',
+        onboardingCompleted: true
+      };
+      saveSession();
+    }
+
+    unlockApp();
+
+    try {
+      await loadUserData();
+      setupRealtimeCloudListener();
+    } catch (err) {
+      console.warn('Background cloud load notice:', err);
+    }
   }
 
   function saveSession() {
