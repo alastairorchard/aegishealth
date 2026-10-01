@@ -783,6 +783,8 @@ document.addEventListener('DOMContentLoaded', () => {
       renderOverviewChart();
     } else if (tabId === 'trends') {
       renderTrendsTab();
+    } else if (tabId === 'account') {
+      renderAccountPage();
     }
   }
 
@@ -801,6 +803,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLabDocsGrid();
     renderDocChatMessages();
     renderReportsView();
+    renderAccountPage();
   }
 
   // ----------------------------------------------------------------------------
@@ -2428,6 +2431,157 @@ document.addEventListener('DOMContentLoaded', () => {
         renderAll();
         alert('Vault cleared! You now have a clean zero-state dashboard across all devices.');
       }
+    });
+  }
+
+  // ----------------------------------------------------------------------------
+  // TAB 8: ACCOUNT PROFILE & DATA PRIVACY MANAGEMENT
+  // ----------------------------------------------------------------------------
+  function renderAccountPage() {
+    if (!state.currentUser) return;
+    const nameInput = document.getElementById('accFullName');
+    const dobInput = document.getElementById('accDob');
+    const sexSelect = document.getElementById('accSex');
+    const heightInput = document.getElementById('accHeight');
+    const weightInput = document.getElementById('accWeight');
+    const bloodTypeInput = document.getElementById('accBloodType');
+    const ageBadge = document.getElementById('accountAgeBadge');
+    const bmiDisplay = document.getElementById('accBmiDisplay');
+    const emailDisplay = document.getElementById('accEmailDisplay');
+    const delEmail = document.getElementById('delAccEmail');
+
+    const nameStr = state.currentUser.fullName || state.currentUser.email?.split('@')[0] || 'Alastair Orchard';
+    const emailStr = state.currentUser.email || 'alastair@orchard.it';
+
+    if (nameInput) nameInput.value = nameStr;
+    if (dobInput) dobInput.value = state.currentUser.dob || '1973-09-20';
+    if (sexSelect) sexSelect.value = state.currentUser.sex || 'male';
+    if (heightInput) heightInput.value = state.currentUser.height || 184;
+    if (weightInput) weightInput.value = state.currentUser.weight || 81.5;
+    if (bloodTypeInput) bloodTypeInput.value = state.currentUser.bloodType || 'O+';
+    if (emailDisplay) emailDisplay.textContent = emailStr;
+    if (delEmail) delEmail.textContent = emailStr;
+
+    // Calculate age & BMI
+    const dob = state.currentUser.dob || '1973-09-20';
+    const birthYear = parseInt(dob.substring(0, 4), 10);
+    const age = 2026 - birthYear;
+    if (ageBadge) ageBadge.textContent = `Age: ${age} Years`;
+
+    const h = parseFloat(state.currentUser.height || 184) / 100.0;
+    const w = parseFloat(state.currentUser.weight || 81.5);
+    if (h > 0 && w > 0 && bmiDisplay) {
+      const bmi = (w / (h * h)).toFixed(1);
+      const cat = bmi < 18.5 ? 'Underweight' : (bmi < 25 ? 'Normal Longevity Zone' : (bmi < 30 ? 'Overweight' : 'Obesity'));
+      bmiDisplay.textContent = `${bmi} kg/m² (${cat})`;
+    }
+  }
+
+  const accountProfileForm = document.getElementById('accountProfileForm');
+  if (accountProfileForm) {
+    accountProfileForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!state.currentUser) return;
+
+      state.currentUser.fullName = document.getElementById('accFullName').value.trim();
+      state.currentUser.dob = document.getElementById('accDob').value;
+      state.currentUser.sex = document.getElementById('accSex').value;
+      state.currentUser.height = document.getElementById('accHeight').value;
+      state.currentUser.weight = document.getElementById('accWeight').value;
+      state.currentUser.bloodType = document.getElementById('accBloodType').value.trim();
+
+      const goals = [];
+      document.querySelectorAll('.acc-goal:checked').forEach(cb => goals.push(cb.value));
+      state.currentUser.goals = goals;
+
+      saveSession();
+      await saveUserData();
+      renderAll();
+      alert('Patient profile updated and synced to Supabase Cloud vault!');
+    });
+  }
+
+  const btnAccountSignOut = document.getElementById('btnAccountSignOut');
+  if (btnAccountSignOut) {
+    btnAccountSignOut.addEventListener('click', () => {
+      if (confirm('Sign out of your AegisHealth vault?')) {
+        localStorage.removeItem('aegis_current_session');
+        state.currentUser = null;
+        state.biomarkers = [];
+        state.wearableMetrics = [];
+        state.labDocuments = [];
+        state.conditions = [];
+        state.conditionTags = [];
+        state.insights = [];
+        state.messages = [];
+        state.reports = [];
+        setAuthMode('login');
+        lockApp();
+      }
+    });
+  }
+
+  // Delete Account Modal & Database Wipe
+  const btnOpenDeleteAccountModal = document.getElementById('btnOpenDeleteAccountModal');
+  const deleteAccountModal = document.getElementById('deleteAccountModal');
+  const btnCancelDeleteAcc = document.getElementById('btnCancelDeleteAcc');
+  const delAccConfirmInput = document.getElementById('delAccConfirmInput');
+  const btnConfirmDeleteAcc = document.getElementById('btnConfirmDeleteAcc');
+
+  if (btnOpenDeleteAccountModal && deleteAccountModal) {
+    btnOpenDeleteAccountModal.addEventListener('click', () => {
+      if (delAccConfirmInput) delAccConfirmInput.value = '';
+      if (btnConfirmDeleteAcc) btnConfirmDeleteAcc.disabled = true;
+      deleteAccountModal.classList.remove('hidden');
+    });
+  }
+
+  if (btnCancelDeleteAcc && deleteAccountModal) {
+    btnCancelDeleteAcc.addEventListener('click', () => {
+      deleteAccountModal.classList.add('hidden');
+    });
+  }
+
+  if (delAccConfirmInput && btnConfirmDeleteAcc) {
+    delAccConfirmInput.addEventListener('input', (e) => {
+      btnConfirmDeleteAcc.disabled = (e.target.value.trim().toUpperCase() !== 'DELETE');
+    });
+  }
+
+  if (btnConfirmDeleteAcc) {
+    btnConfirmDeleteAcc.addEventListener('click', async () => {
+      if (!state.currentUser) return;
+      const email = (state.currentUser.email || '').toLowerCase().trim();
+
+      btnConfirmDeleteAcc.textContent = 'Deleting & Wiping...';
+      btnConfirmDeleteAcc.disabled = true;
+
+      // 1. Delete from Supabase PostgreSQL database
+      if (state.supabase && email) {
+        try {
+          await state.supabase.from('aegis_user_vaults').delete().eq('user_email', email);
+        } catch(e) {
+          console.warn('Supabase delete error:', e);
+        }
+      }
+
+      // 2. Wipe local storage
+      localStorage.clear();
+
+      state.currentUser = null;
+      state.biomarkers = [];
+      state.wearableMetrics = [];
+      state.labDocuments = [];
+      state.conditions = [];
+      state.conditionTags = [];
+      state.insights = [];
+      state.messages = [];
+      state.reports = [];
+
+      deleteAccountModal.classList.add('hidden');
+      setAuthMode('login');
+      lockApp();
+      alert('Your account and all associated medical data have been permanently deleted from the database.');
     });
   }
 

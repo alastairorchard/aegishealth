@@ -248,6 +248,9 @@
         <button data-tab="integrations" class="tab-btn px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all text-slate-400 hover:text-white">
           <i data-lucide="watch" class="w-4 h-4 text-accent-purple"></i> Devices & Cloud
         </button>
+        <button data-tab="account" class="tab-btn px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all text-slate-400 hover:text-white">
+          <i data-lucide="user" class="w-4 h-4 text-brand-400"></i> Account
+        </button>
       </nav>
 
       <!-- Right User / Profile & Logout -->
@@ -256,7 +259,7 @@
           <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Diagnostic Report
         </button>
 
-        <div class="flex items-center gap-2 pl-2 border-l border-surface-border">
+        <div class="flex items-center gap-2 pl-2 border-l border-surface-border cursor-pointer hover:opacity-80 transition" onclick="switchTab('account')">
           <div id="userAvatarInitials" class="w-8 h-8 rounded-full bg-surface-muted border border-surface-border flex items-center justify-center font-bold text-xs text-brand-400">
             --
           </div>
@@ -264,9 +267,6 @@
             <p id="userProfileName" class="font-semibold text-white">Guest</p>
             <p id="userProfileEmail" class="text-[10px] text-slate-400">Not Connected</p>
           </div>
-          <button id="btnSignOut" title="Sign Out" class="p-1.5 rounded-lg hover:bg-surface-muted text-slate-400 hover:text-rose-400 transition-colors ml-1 cursor-pointer">
-            <i data-lucide="log-out" class="w-4 h-4"></i>
-          </button>
         </div>
       </div>
     </header>
@@ -293,6 +293,9 @@
       </button>
       <button data-tab="integrations" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 text-slate-400 hover:text-white bg-surface-dark border border-surface-border transition-all">
         <i data-lucide="watch" class="w-3.5 h-3.5 text-accent-purple"></i> Devices
+      </button>
+      <button data-tab="account" class="tab-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold shrink-0 flex items-center gap-1.5 text-slate-400 hover:text-white bg-surface-dark border border-surface-border transition-all">
+        <i data-lucide="user" class="w-3.5 h-3.5 text-brand-400"></i> Account
       </button>
     </div>
 
@@ -953,6 +956,156 @@
         </div>
       </section>
 
+      <!-- ============================================================================== -->
+      <!-- TAB 8: ACCOUNT PROFILE, DEMOGRAPHICS & DATA PRIVACY (NEW)                      -->
+      <!-- ============================================================================== -->
+      <section id="tab-account" class="tab-content hidden space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Left: Personal Demographics & Anthropometrics Form (2 cols) -->
+          <div class="lg:col-span-2 bg-surface-card border border-surface-border rounded-2xl p-6 space-y-6">
+            <div class="flex items-center justify-between border-b border-surface-border pb-4">
+              <div class="flex items-center gap-3">
+                <div class="p-2.5 bg-brand-500/10 rounded-xl text-brand-400 border border-brand-500/20">
+                  <i data-lucide="user-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                  <h3 class="text-base font-bold text-white">Patient Profile & Clinical Baseline</h3>
+                  <p class="text-xs text-slate-400">Demographics, biometric anthropometrics, and longevity targets</p>
+                </div>
+              </div>
+              <span id="accountAgeBadge" class="px-3 py-1 rounded-full text-xs font-bold bg-brand-500/20 text-brand-400 border border-brand-500/30">
+                Age: ~53
+              </span>
+            </div>
+
+            <form id="accountProfileForm" class="space-y-5 text-xs">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Full Legal / Preferred Name</label>
+                  <input type="text" id="accFullName" required class="w-full bg-surface-dark border border-surface-border rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-brand-400">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Date of Birth</label>
+                  <input type="date" id="accDob" required class="w-full bg-surface-dark border border-surface-border rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-brand-400">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Biological Sex</label>
+                  <select id="accSex" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-brand-400">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Height (cm)</label>
+                  <input type="number" id="accHeight" placeholder="184" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-brand-400">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Weight (kg)</label>
+                  <input type="number" id="accWeight" step="0.1" placeholder="81.5" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-brand-400">
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Blood Type</label>
+                  <input type="text" id="accBloodType" placeholder="e.g. O Positive (O+)" class="w-full bg-surface-dark border border-surface-border rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-brand-400">
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-300 mb-1">Calculated Body Mass Index (BMI)</label>
+                  <div id="accBmiDisplay" class="bg-surface-dark border border-surface-border rounded-xl px-3.5 py-2.5 text-slate-300 font-mono">
+                    24.0 kg/m² (Normal Range)
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block font-semibold text-slate-300 mb-2">Primary Longevity & Health Targets</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <label class="flex items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
+                    <input type="checkbox" checked value="Cardiovascular & Lipid Optimization" class="acc-goal rounded accent-brand-500">
+                    <span>Cardiovascular & Lipid Optimization</span>
+                  </label>
+                  <label class="flex items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
+                    <input type="checkbox" checked value="Ophthalmology / Macular Protection" class="acc-goal rounded accent-brand-500">
+                    <span>Ophthalmology & Macular Protection</span>
+                  </label>
+                  <label class="flex items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
+                    <input type="checkbox" checked value="Hormonal & Endocrine Balance" class="acc-goal rounded accent-brand-500">
+                    <span>Hormonal & Endocrine Balance</span>
+                  </label>
+                  <label class="flex items-center gap-2.5 p-3 rounded-xl border border-surface-border bg-surface-dark/60 cursor-pointer hover:border-brand-500/50">
+                    <input type="checkbox" checked value="Apple Watch Autonomic Telemetry" class="acc-goal rounded accent-brand-500">
+                    <span>Apple Watch Autonomic Telemetry</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="pt-2 flex justify-end">
+                <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-brand-500 to-accent-cyan text-white font-bold rounded-xl text-xs shadow-md hover:opacity-95 transition-all cursor-pointer flex items-center gap-1.5">
+                  <i data-lucide="check" class="w-4 h-4"></i> Save Profile Changes to Cloud
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <!-- Right: Account Status, Log Out & Danger Zone -->
+          <div class="space-y-6">
+            
+            <!-- Cloud Account Metadata -->
+            <div class="bg-surface-card border border-surface-border rounded-2xl p-6 space-y-4 text-xs">
+              <div class="flex items-center gap-2 pb-3 border-b border-surface-border">
+                <i data-lucide="shield-check" class="w-5 h-5 text-brand-400"></i>
+                <h4 class="font-bold text-sm text-white">Account & Cloud Vault</h4>
+              </div>
+
+              <div class="space-y-2.5 text-slate-300">
+                <div>
+                  <span class="text-slate-500 block text-[11px]">Registered Email</span>
+                  <strong id="accEmailDisplay" class="text-white font-mono">alastair@orchard.it</strong>
+                </div>
+                <div>
+                  <span class="text-slate-500 block text-[11px]">Supabase Database</span>
+                  <span class="text-slate-300 font-mono text-[11px]">motbikijmbuufadheykm.supabase.co</span>
+                </div>
+                <div>
+                  <span class="text-slate-500 block text-[11px]">Cloud Telemetry Records</span>
+                  <span class="text-brand-400 font-bold">14,028 Apple Watch Points Synced</span>
+                </div>
+              </div>
+
+              <div class="pt-3 border-t border-surface-border">
+                <button id="btnAccountSignOut" class="w-full py-2.5 bg-surface-dark hover:bg-surface-muted border border-surface-border text-slate-200 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+                  <i data-lucide="log-out" class="w-4 h-4 text-rose-400"></i> Sign Out of Account
+                </button>
+              </div>
+            </div>
+
+            <!-- Danger Zone (Delete Account & Wipe Database) -->
+            <div class="bg-rose-950/20 border border-rose-500/30 rounded-2xl p-6 space-y-4 text-xs">
+              <div class="flex items-center gap-2 text-rose-400 pb-2 border-b border-rose-500/20">
+                <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                <h4 class="font-bold text-sm">Danger Zone</h4>
+              </div>
+
+              <p class="text-slate-400 text-[11px] leading-relaxed">
+                Permanently delete your account, wipe all verified blood panels, ultrasounds, and Apple Watch telemetry from the Supabase cloud database, and reset the application.
+              </p>
+
+              <button id="btnOpenDeleteAccountModal" class="w-full py-2.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/40 text-rose-400 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+                <i data-lucide="trash-2" class="w-4 h-4"></i> Delete Account & Wipe Database
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
     </main>
 
     <!-- Footer -->
@@ -1126,6 +1279,40 @@
           Save Condition to Hub
         </button>
       </form>
+    </div>
+  </div>
+
+  <!-- Delete Account Confirmation Modal -->
+  <div id="deleteAccountModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md hidden p-4">
+    <div class="bg-surface-card border border-rose-500/40 rounded-3xl w-full max-w-md p-6 sm:p-8 shadow-2xl relative text-xs space-y-4">
+      <div class="flex items-center gap-3 text-rose-400 border-b border-rose-500/20 pb-3">
+        <div class="p-2 bg-rose-500/10 rounded-xl">
+          <i data-lucide="alert-octagon" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white">Permanently Delete Account?</h3>
+          <p class="text-[11px] text-rose-400">Irreversible Action</p>
+        </div>
+      </div>
+
+      <p class="text-slate-300 leading-relaxed text-xs">
+        This will permanently delete your account (<strong id="delAccEmail" class="text-white"></strong>) and wipe all verified laboratory records, ultrasounds, Apple Watch telemetry (14,028 points), and Doc consultation history from the Supabase PostgreSQL database.
+      </p>
+
+      <div class="p-3 rounded-xl bg-surface-dark border border-surface-border text-[11px] text-slate-400">
+        To proceed, type <code class="text-rose-400 font-mono font-bold">DELETE</code> below:
+      </div>
+
+      <input type="text" id="delAccConfirmInput" placeholder="Type DELETE to confirm" class="w-full bg-surface-dark border border-rose-500/40 rounded-xl px-3.5 py-2.5 text-white font-mono text-xs focus:outline-none focus:border-rose-400">
+
+      <div class="flex items-center justify-end gap-3 pt-2">
+        <button id="btnCancelDeleteAcc" class="px-4 py-2.5 rounded-xl border border-surface-border text-slate-300 hover:bg-surface-dark font-semibold text-xs cursor-pointer">
+          Cancel
+        </button>
+        <button id="btnConfirmDeleteAcc" disabled class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs shadow-lg shadow-rose-600/30 transition-all cursor-pointer flex items-center gap-1.5">
+          <i data-lucide="trash-2" class="w-4 h-4"></i> Permanently Delete & Wipe
+        </button>
+      </div>
     </div>
   </div>
 
