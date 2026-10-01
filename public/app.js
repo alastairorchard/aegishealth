@@ -747,30 +747,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ----------------------------------------------------------------------------
-  // TAB NAVIGATION
+  // TAB NAVIGATION (DELEGATED & GLOBAL)
   // ----------------------------------------------------------------------------
-  const tabButtons = document.querySelectorAll('.tab-btn, [data-tab]');
-  tabButtons.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const tabTarget = btn.getAttribute('data-tab');
-      if (!tabTarget) return;
-      switchTab(tabTarget);
-    });
-  });
-
   function switchTab(tabId) {
+    if (!tabId) return;
     state.activeTab = tabId;
     
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      if (btn.getAttribute('data-tab') === tabId) {
+    // Update active tab buttons across all nav surfaces
+    document.querySelectorAll('.tab-btn, [data-tab]').forEach(btn => {
+      const target = btn.getAttribute('data-tab');
+      if (target === tabId) {
         btn.classList.add('active', 'text-white', 'bg-brand-500/20', 'border-brand-500/40');
         btn.classList.remove('text-slate-400');
-      } else {
+      } else if (target) {
         btn.classList.remove('active', 'text-white', 'bg-brand-500/20', 'border-brand-500/40');
         btn.classList.add('text-slate-400');
       }
     });
 
+    // Toggle tab visibility
     document.querySelectorAll('.tab-content').forEach(section => {
       if (section.id === `tab-${tabId}`) {
         section.classList.remove('hidden');
@@ -779,14 +774,32 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
+    // Refresh sub-views
     if (tabId === 'overview') {
       renderOverviewChart();
     } else if (tabId === 'trends') {
       renderTrendsTab();
     } else if (tabId === 'account') {
       renderAccountPage();
+    } else if (tabId === 'reports') {
+      renderReportsView();
     }
+
+    if (window.lucide) window.lucide.createIcons();
   }
+  window.switchTab = switchTab;
+
+  // Delegated click listener for all data-tab elements
+  document.addEventListener('click', (e) => {
+    const tabEl = e.target.closest('[data-tab]');
+    if (tabEl) {
+      const tabTarget = tabEl.getAttribute('data-tab');
+      if (tabTarget) {
+        e.preventDefault();
+        switchTab(tabTarget);
+      }
+    }
+  });
 
   // ----------------------------------------------------------------------------
   // PRIMARY RENDERING ORCHESTRATOR
