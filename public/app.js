@@ -2307,7 +2307,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) window.lucide.createIcons();
   }
 
-  const btnQuickReport = document.getElementById('btnQuickReport');
   const btnGenerateNewReport = document.getElementById('btnGenerateNewReport');
 
   function generateDiagnosticReport() {
@@ -2360,7 +2359,6 @@ document.addEventListener('DOMContentLoaded', () => {
     switchTab('reports');
   }
 
-  if (btnQuickReport) btnQuickReport.addEventListener('click', generateDiagnosticReport);
   if (btnGenerateNewReport) btnGenerateNewReport.addEventListener('click', generateDiagnosticReport);
 
   // ----------------------------------------------------------------------------
