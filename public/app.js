@@ -92,15 +92,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  tabAuthLogin.addEventListener('click', () => setAuthMode('login'));
-  tabAuthRegister.addEventListener('click', () => setAuthMode('register'));
+  if (tabAuthLogin) tabAuthLogin.addEventListener('click', () => setAuthMode('login'));
+  if (tabAuthRegister) tabAuthRegister.addEventListener('click', () => setAuthMode('register'));
   if (btnToggleAuthModeLink) {
     btnToggleAuthModeLink.addEventListener('click', () => {
       setAuthMode(state.authMode === 'login' ? 'register' : 'login');
     });
   }
 
-  authForm.addEventListener('submit', async (e) => {
+  if (authForm) authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     authErrorMsg.classList.add('hidden');
     const email = (authEmailInput.value || '').trim().toLowerCase();
@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  btnSignOut.addEventListener('click', () => {
+  if (btnSignOut) btnSignOut.addEventListener('click', () => {
     if (confirm('Sign out of your AegisHealth vault?')) {
       localStorage.removeItem('aegis_current_session');
       state.currentUser = null;
@@ -244,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   const onboardingForm = document.getElementById('onboardingForm');
-  onboardingForm.addEventListener('submit', async (e) => {
+  if (onboardingForm) onboardingForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = document.getElementById('obName').value.trim();
     const dob = document.getElementById('obDob').value;
@@ -701,7 +701,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const docChatForm = document.getElementById('docChatForm');
   if (docChatForm) {
-    docChatForm.addEventListener('submit', async (e) => {
+    if (docChatForm) docChatForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const input = document.getElementById('docInput');
       const query = input.value.trim();
@@ -1334,7 +1334,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnManualAddLab) {
-    btnManualAddLab.addEventListener('click', () => {
+    if (btnManualAddLab) btnManualAddLab.addEventListener('click', () => {
       openLabReviewModal({
         documentTitle: 'Manual Clinical Entry',
         fileName: 'Manual_Entry_' + new Date().toISOString().split('T')[0],
@@ -1679,7 +1679,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnAddRowToReview) {
-    btnAddRowToReview.addEventListener('click', () => {
+    if (btnAddRowToReview) btnAddRowToReview.addEventListener('click', () => {
       if (!state.pendingLabReview) return;
       state.pendingLabReview.extractedItems.push({
         code: 'CUSTOM_' + Date.now(),
@@ -1697,7 +1697,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Confirm and Save Verified Biomarkers -> Trigger Autonomous Review
   if (btnConfirmLabSave) {
-    btnConfirmLabSave.addEventListener('click', async () => {
+    if (btnConfirmLabSave) btnConfirmLabSave.addEventListener('click', async () => {
       if (!state.pendingLabReview) return;
 
       const dateStr = state.pendingLabReview.extractedDate || new Date().toISOString().split('T')[0];
@@ -1828,7 +1828,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnCloseViewer = document.getElementById('btnCloseViewer');
   if (btnCloseViewer) {
-    btnCloseViewer.addEventListener('click', () => {
+    if (btnCloseViewer) btnCloseViewer.addEventListener('click', () => {
       document.getElementById('docViewerModal').classList.add('hidden');
     });
   }
@@ -1933,14 +1933,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnCloseCondDetail = document.getElementById('btnCloseCondDetail');
   if (btnCloseCondDetail) {
-    btnCloseCondDetail.addEventListener('click', () => {
+    if (btnCloseCondDetail) btnCloseCondDetail.addEventListener('click', () => {
       document.getElementById('conditionDetailSection').classList.add('hidden');
     });
   }
 
   const btnToggleCondResolved = document.getElementById('btnToggleCondResolved');
   if (btnToggleCondResolved) {
-    btnToggleCondResolved.addEventListener('click', async () => {
+    if (btnToggleCondResolved) btnToggleCondResolved.addEventListener('click', async () => {
       if (!state.selectedCondition) return;
       state.selectedCondition.status = state.selectedCondition.status === 'resolved' ? 'active' : 'resolved';
       if (state.selectedCondition.status === 'resolved') {
@@ -2039,9 +2039,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const newConditionForm = document.getElementById('newConditionForm');
 
   if (btnNewCondition && newConditionModal) {
-    btnNewCondition.addEventListener('click', () => newConditionModal.classList.remove('hidden'));
-    btnCloseNewCond.addEventListener('click', () => newConditionModal.classList.add('hidden'));
-    newConditionForm.addEventListener('submit', async (e) => {
+    if (btnNewCondition) btnNewCondition.addEventListener('click', () => newConditionModal.classList.remove('hidden'));
+    if (btnCloseNewCond) btnCloseNewCond.addEventListener('click', () => newConditionModal.classList.add('hidden'));
+    if (newConditionForm) newConditionForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const newCond = {
         id: 'cond-' + Date.now(),
@@ -2371,7 +2371,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const backupFileInput = document.getElementById('backupFileInput');
 
   if (btnExportVaultBackup) {
-    btnExportVaultBackup.addEventListener('click', () => {
+    if (btnExportVaultBackup) btnExportVaultBackup.addEventListener('click', () => {
       const email = (state.currentUser?.email || 'user').toLowerCase();
       const bundle = {
         app: 'AegisHealth',
@@ -2400,8 +2400,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnImportVaultBackup && backupFileInput) {
-    btnImportVaultBackup.addEventListener('click', () => backupFileInput.click());
-    backupFileInput.addEventListener('change', async (e) => {
+    if (btnImportVaultBackup) btnImportVaultBackup.addEventListener('click', () => backupFileInput.click());
+    if (backupFileInput) backupFileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
       if (!file) return;
 
@@ -2434,7 +2434,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Manual on-demand cloud sync button
   const btnManualCloudSync = document.getElementById('btnManualCloudSync');
   if (btnManualCloudSync) {
-    btnManualCloudSync.addEventListener('click', async () => {
+    if (btnManualCloudSync) btnManualCloudSync.addEventListener('click', async () => {
       btnManualCloudSync.classList.add('animate-spin');
       await loadUserData();
       await triggerAutonomousDocClinicalReview();
@@ -2446,7 +2446,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Clear all data (Wipe from both Cloud and Local)
   const btnClearData = document.getElementById('btnClearData');
   if (btnClearData) {
-    btnClearData.addEventListener('click', async () => {
+    if (btnClearData) btnClearData.addEventListener('click', async () => {
       if (confirm('Clear all stored biomarkers and reset your health vault to a clean zero state across all devices?')) {
         const email = (state.currentUser?.email || '').toLowerCase().trim();
         state.biomarkers = [];
@@ -2517,7 +2517,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const accountProfileForm = document.getElementById('accountProfileForm');
   if (accountProfileForm) {
-    accountProfileForm.addEventListener('submit', async (e) => {
+    if (accountProfileForm) accountProfileForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       if (!state.currentUser) return;
 
@@ -2541,7 +2541,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnAccountSignOut = document.getElementById('btnAccountSignOut');
   if (btnAccountSignOut) {
-    btnAccountSignOut.addEventListener('click', () => {
+    if (btnAccountSignOut) btnAccountSignOut.addEventListener('click', () => {
       if (confirm('Sign out of your AegisHealth vault?')) {
         localStorage.removeItem('aegis_current_session');
         state.currentUser = null;
@@ -2567,7 +2567,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnConfirmDeleteAcc = document.getElementById('btnConfirmDeleteAcc');
 
   if (btnOpenDeleteAccountModal && deleteAccountModal) {
-    btnOpenDeleteAccountModal.addEventListener('click', () => {
+    if (btnOpenDeleteAccountModal) btnOpenDeleteAccountModal.addEventListener('click', () => {
       if (delAccConfirmInput) delAccConfirmInput.value = '';
       if (btnConfirmDeleteAcc) btnConfirmDeleteAcc.disabled = true;
       deleteAccountModal.classList.remove('hidden');
@@ -2575,19 +2575,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   if (btnCancelDeleteAcc && deleteAccountModal) {
-    btnCancelDeleteAcc.addEventListener('click', () => {
+    if (btnCancelDeleteAcc) btnCancelDeleteAcc.addEventListener('click', () => {
       deleteAccountModal.classList.add('hidden');
     });
   }
 
   if (delAccConfirmInput && btnConfirmDeleteAcc) {
-    delAccConfirmInput.addEventListener('input', (e) => {
+    if (delAccConfirmInput) delAccConfirmInput.addEventListener('input', (e) => {
       btnConfirmDeleteAcc.disabled = (e.target.value.trim().toUpperCase() !== 'DELETE');
     });
   }
 
   if (btnConfirmDeleteAcc) {
-    btnConfirmDeleteAcc.addEventListener('click', async () => {
+    if (btnConfirmDeleteAcc) btnConfirmDeleteAcc.addEventListener('click', async () => {
       if (!state.currentUser) return;
       const email = (state.currentUser.email || '').toLowerCase().trim();
 
@@ -2626,7 +2626,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Copy Webhook / Token Helpers
   const btnCopyWebhook = document.getElementById('btnCopyWebhook');
   if (btnCopyWebhook) {
-    btnCopyWebhook.addEventListener('click', () => {
+    if (btnCopyWebhook) btnCopyWebhook.addEventListener('click', () => {
       const input = document.getElementById('webhookUrlInput');
       input.select();
       navigator.clipboard.writeText(input.value);
@@ -2636,7 +2636,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const btnCopyToken = document.getElementById('btnCopyToken');
   if (btnCopyToken) {
-    btnCopyToken.addEventListener('click', () => {
+    if (btnCopyToken) btnCopyToken.addEventListener('click', () => {
       const input = document.getElementById('apiTokenInput');
       input.select();
       navigator.clipboard.writeText(input.value);
