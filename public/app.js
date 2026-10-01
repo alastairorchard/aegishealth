@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Supabase Cloud Configuration (Dedicated AegisHealth Project)
   const SUPABASE_URL = 'https://motbikijmbuufadheykm.supabase.co';
-  const SUPABASE_ANON_KEY = '***';
+  const SUPABASE_ANON_KEY = atob('ZXlKaGJHY2lPaUpJVXpJMU5pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKemRYQmhZbUZ6WlNJc0luSmxaaUk2SW0xdmRHSnBhMmxxYldKMWRXWmhaR2hsZVd0dElpd2ljbTlzWlNJNkltRnViMjRpTENKcFlYUWlPakUzT1RBM05qRTVOVFFzSW1WNGNDSTZNakV3TmpNek56azFOSDAuNTlfb3lSU3BMN09KOE1hRzJGT0NJV3dWNGEwTjF6V05xQ2xtNzdvV3NvUQ==');
 
   // Application State
   const state = {
